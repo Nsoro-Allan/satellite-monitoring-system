@@ -1,0 +1,265 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useSatelliteStore } from '@/store/satellite-store';
+import { VisualPass, RadioPass } from '@/lib/n2yo';
+import { X, Eye, Radio, FileText, Loader2, Clock, Compass, Satellite, Globe } from 'lucide-react';
+
+export default function SatellitePanel() {
+  const { 
+    selectedSatellite, 
+    setSelectedSatellite, 
+    apiKey, 
+    observer, 
+    addTrackedSatellite,
+    setSelectedOrbitPositions 
+  } = useSatelliteStore();
+  
+  const [activeTab, setActiveTab] = useState<'info' | 'visual' | 'radio' | 'tle'>('info');
+  const [visualPasses, setVisualPasses] = useState<VisualPass[]>([]);
+  const [radioPasses, setRadioPasses] = useState<RadioPass[]>([]);
+  const [tle, setTle] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const fetchDetails = useCallback(async () => {
+    if (!selectedSatellite || !apiKey) return;
+    setLoading(true);
+
+    try {
+      // Fetch orbit positions for the green line (300 seconds = 5 minutes of orbit)
+      const orbitRes = await fetch(
+        `/api/satellite/positions?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=${observer.alt}&seconds=300&apiKey=${apiKey}`
+      );
+      const orbitData = await orbitRes.json();
+      if (orbitData.positions) {
+        setSelectedOrbitPositions(orbitData.positions);
+      }
+
+      const [tleRes, visualRes, radioRes] = await Promise.all([
+        fetch(`/api/satellite/tle?satId=${selectedSatellite.satid}&apiKey=${apiKey}`),
+        fetch(`/api/satellite/visualpasses?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=${observer.alt}&days=5&minVisibility=60&apiKey=${apiKey}`),
+        fetch(`/api/satellite/radiopasses?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=${observer.alt}&days=5&minElevation=20&apiKey=${apiKey}`),
+      ]);
+
+      const [tleData, visualData, radioData] = await Promise.all([
+        tleRes.json(),
+        visualRes.json(),
+        radioRes.json(),
+      ]);
+
+      setTle(tleData.tle || '');
+      setVisualPasses(visualData.passes || []);
+      setRadioPasses(radioData.passes || []);
+    } catch (error) {
+      console.error('Failed to fetch details:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedSatellite, apiKey, observer, setSelectedOrbitPositions]);
+
+  useEffect(() => {
+    if (selectedSatellite) {
+      fetchDetails();
+      setActiveTab('info');
+    } else {
+      setSelectedOrbitPositions([]);
+    }
+  }, [selectedSatellite, fetchDetails, setSelectedOrbitPositions]);
+
+  const trackSatellite = async () => {
+    if (!selectedSatellite) return;
+    try {
+      const res = await fetch(
+        `/api/satellite/positions?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=0&seconds=300&apiKey=${apiKey}`
+      );
+      const data = await res.json();
+      addTrackedSatellite({
+        id: selectedSatellite.satid,
+        name: selectedSatellite.satname,
+        positions: data.positions || [],
+        color: '',
+      });
+    } catch (error) {
+      console.error('Failed to track:', error);
+    }
+  };
+
+  const handleClose = () => {
+    setSelectedSatellite(null);
+    setSelectedOrbitPositions([]);
+  };
+
+  if (!selectedSatellite) return null;
+
+  const formatTime = (utc: number) => new Date(utc * 1000).toLocaleString();
+
+  const tabs = [
+    { id: 'info', label: 'Info', icon: Satellite },
+    { id: 'visual', label: 'Visual', icon: Eye },
+    { id: 'radio', label: 'Radio', icon: Radio },
+    { id: 'tle', label: 'TLE', icon: FileText },
+  ] as const;
+
+  return (
+    <div className="absolute bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-gray-900/95 backdrop-blur-sm rounded-xl border border-gray-700 shadow-2xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b border-gray-700 bg-gradient-to-r from-green-900/30 to-transparent">
+        <div>
+          <h3 className="font-bold text-white">{selectedSatellite.satname}</h3>
+          <p className="text-xs text-gray-400 flex items-center gap-1">
+            <Globe size={10} className="text-green-400" />
+            NORAD #{selectedSatellite.satid} • Orbit shown in green
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={trackSatellite}
+            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 text-white text-xs rounded-lg transition-colors"
+          >
+            Track
+          </button>
+          <button
+            onClick={handleClose}
+            className="p-1.5 hover:bg-gray-700 rounded-lg transition-colors text-gray-400"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-700">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex-1 py-2 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              activeTab === tab.id
+                ? 'text-cyan-400 border-b-2 border-cyan-400 bg-gray-800/50'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            <tab.icon size={14} />
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="p-4 max-h-64 overflow-y-auto">
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="animate-spin text-cyan-400" size={24} />
+          </div>
+        )}
+
+        {!loading && activeTab === 'info' && (
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="bg-gray-800 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Latitude</p>
+              <p className="text-white font-medium">{selectedSatellite.satlat.toFixed(4)}°</p>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Longitude</p>
+              <p className="text-white font-medium">{selectedSatellite.satlng.toFixed(4)}°</p>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Altitude</p>
+              <p className="text-white font-medium">{selectedSatellite.satalt.toFixed(1)} km</p>
+            </div>
+            <div className="bg-gray-800 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">Launch Date</p>
+              <p className="text-white font-medium">{selectedSatellite.launchDate || 'Unknown'}</p>
+            </div>
+            <div className="col-span-2 bg-gray-800 rounded-lg p-3">
+              <p className="text-gray-500 text-xs">International Designator</p>
+              <p className="text-white font-medium">{selectedSatellite.intDesignator || 'N/A'}</p>
+            </div>
+          </div>
+        )}
+
+        {!loading && activeTab === 'visual' && (
+          <div className="space-y-2">
+            {visualPasses.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-4">No visual passes in the next 5 days</p>
+            ) : (
+              visualPasses.map((pass, i) => (
+                <div key={i} className="bg-gray-800 rounded-lg p-3 text-xs">
+                  <div className="flex items-center gap-2 text-cyan-400 mb-2">
+                    <Clock size={12} />
+                    {formatTime(pass.startUTC)}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-gray-300">
+                    <div>
+                      <p className="text-gray-500">Start</p>
+                      <p><Compass size={10} className="inline" /> {pass.startAzCompass}</p>
+                      <p>El: {pass.startEl.toFixed(0)}°</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Max</p>
+                      <p><Compass size={10} className="inline" /> {pass.maxAzCompass}</p>
+                      <p>El: {pass.maxEl.toFixed(0)}°</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">End</p>
+                      <p><Compass size={10} className="inline" /> {pass.endAzCompass}</p>
+                      <p>El: {pass.endEl.toFixed(0)}°</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-gray-700 flex justify-between text-gray-400">
+                    <span>Duration: {pass.duration}s</span>
+                    <span>Mag: {pass.mag}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {!loading && activeTab === 'radio' && (
+          <div className="space-y-2">
+            {radioPasses.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-4">No radio passes in the next 5 days</p>
+            ) : (
+              radioPasses.map((pass, i) => (
+                <div key={i} className="bg-gray-800 rounded-lg p-3 text-xs">
+                  <div className="flex items-center gap-2 text-cyan-400 mb-2">
+                    <Clock size={12} />
+                    {formatTime(pass.startUTC)}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-gray-300">
+                    <div>
+                      <p className="text-gray-500">Start</p>
+                      <p>{pass.startAzCompass} {pass.startAz.toFixed(0)}°</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">Max</p>
+                      <p>{pass.maxAzCompass} {pass.maxAz.toFixed(0)}°</p>
+                      <p>El: {pass.maxEl.toFixed(0)}°</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500">End</p>
+                      <p>{pass.endAzCompass} {pass.endAz.toFixed(0)}°</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
+        {!loading && activeTab === 'tle' && (
+          <div>
+            {tle ? (
+              <pre className="bg-gray-800 p-3 rounded-lg text-xs text-green-400 font-mono overflow-x-auto whitespace-pre-wrap">
+                {tle.replace(/\\r\\n/g, '\n')}
+              </pre>
+            ) : (
+              <p className="text-gray-500 text-sm text-center py-4">TLE data not available</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
