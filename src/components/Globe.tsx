@@ -1,10 +1,35 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState, Suspense } from 'react';
-import { Canvas, useFrame, useLoader, ThreeEvent } from '@react-three/fiber';
+import { useRef, useMemo, useEffect, useState, Suspense, createContext, useContext } from 'react';
+import { Canvas, useFrame, useLoader, ThreeEvent, useThree } from '@react-three/fiber';
 import { OrbitControls, Html, Stars, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSatelliteStore } from '@/store/satellite-store';
+
+// Context to share camera distance across components
+const CameraDistanceContext = createContext<number>(5.5);
+
+function CameraDistanceProvider({ children }: { children: React.ReactNode }) {
+  const { camera } = useThree();
+  const [distance, setDistance] = useState(5.5);
+  
+  useFrame(() => {
+    const newDistance = camera.position.length();
+    if (Math.abs(newDistance - distance) > 0.1) {
+      setDistance(newDistance);
+    }
+  });
+  
+  return (
+    <CameraDistanceContext.Provider value={distance}>
+      {children}
+    </CameraDistanceContext.Provider>
+  );
+}
+
+function useCameraDistance() {
+  return useContext(CameraDistanceContext);
+}
 
 function latLngToVector3(lat: number, lng: number, radius: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -91,13 +116,18 @@ function getModelForSatellite(name: string): { path: string; scale: number } {
   return { path: '/satellite.glb', scale: 0.015 };
 }
 
-// Glowing marker for easy clicking
+// Glowing marker for easy clicking - zoom responsive
 function SatelliteMarker({ color, isSelected }: { color: string; isSelected: boolean }) {
+  const cameraDistance = useCameraDistance();
+  // Scale marker based on camera distance (smaller when zoomed in)
+  const scale = Math.max(0.3, Math.min(1, cameraDistance / 5.5));
+  const markerSize = 0.025 * scale;
+  
   return (
-    <group>
+    <group scale={[scale, scale, scale]}>
       {/* Small indicator sphere */}
       <mesh>
-        <sphereGeometry args={[0.025, 16, 16]} />
+        <sphereGeometry args={[markerSize / scale, 16, 16]} />
         <meshBasicMaterial color={isSelected ? '#00ff00' : color} transparent opacity={0.8} />
       </mesh>
     </group>
@@ -123,10 +153,14 @@ function Satellite({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
+  const cameraDistance = useCameraDistance();
   
   const radius = 2 + (alt / 6371) * 0.4;
   const position = useMemo(() => latLngToVector3(lat, lng, radius), [lat, lng, radius]);
   const model = useMemo(() => getModelForSatellite(name), [name]);
+  
+  // Scale for 3D model
+  const zoomScale = Math.max(0.2, Math.min(0.6, (cameraDistance - 3) / 8));
   
   useFrame((state) => {
     if (groupRef.current) {
@@ -141,13 +175,13 @@ function Satellite({
 
   return (
     <group position={position}>
-      {/* Large invisible clickable sphere for easy selection */}
+      {/* Invisible clickable sphere */}
       <mesh 
         onClick={handleClick}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
       >
-        <sphereGeometry args={[0.15, 16, 16]} />
+        <sphereGeometry args={[0.08, 16, 16]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
@@ -155,26 +189,36 @@ function Satellite({
       <SatelliteMarker color={hovered ? '#ffffff' : color} isSelected={isSelected} />
       
       {/* 3D Model */}
-      <group ref={groupRef}>
+      <group ref={groupRef} scale={[zoomScale, zoomScale, zoomScale]}>
         <Suspense fallback={<SimpleSatelliteModel />}>
           <SatelliteGLB modelPath={model.path} scale={model.scale} />
         </Suspense>
       </group>
       
-      {/* Tooltip */}
+      {/* Small compact tooltip - fixed size, not 3D scaled */}
       {(hovered || isSelected) && (
-        <Html distanceFactor={8}>
-          <div className={`px-3 py-2 rounded-lg text-xs whitespace-nowrap shadow-xl backdrop-blur-sm border ${
-            isSelected 
-              ? 'bg-green-900/95 border-green-500 text-green-100' 
-              : 'bg-gray-900/95 border-cyan-500/50 text-white'
-          }`}>
-            <div className="font-bold">{name}</div>
-            <div className="text-gray-300 mt-1 space-y-0.5">
-              <div>Altitude: {alt.toFixed(0)} km</div>
-              <div>Lat: {lat.toFixed(2)}° Lng: {lng.toFixed(2)}°</div>
-            </div>
-            {isSelected && <div className="text-green-400 mt-1 text-[10px]">● Showing orbit</div>}
+        <Html
+          style={{ 
+            pointerEvents: 'none',
+            transform: 'translate(-50%, -120%)',
+          }}
+          center={false}
+        >
+          <div 
+            className={`rounded shadow-md border ${
+              isSelected 
+                ? 'bg-green-900/95 border-green-500 text-green-100' 
+                : 'bg-gray-900/95 border-cyan-500/50 text-white'
+            }`}
+            style={{
+              padding: '4px 8px',
+              fontSize: '11px',
+              lineHeight: '1.3',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <div className="font-semibold">{name}</div>
+            <div className="text-gray-300" style={{ fontSize: '10px' }}>{alt.toFixed(0)} km</div>
           </div>
         </Html>
       )}
@@ -182,52 +226,159 @@ function Satellite({
   );
 }
 
-// Orbit path visualization - GREEN line
+// Orbit path visualization - GREEN line with smooth curve around globe
 function OrbitPath({ positions, color = '#00ff00' }: { positions: { lat: number; lng: number; alt: number }[]; color?: string }) {
-  const points = useMemo(() => {
-    return positions.map((p) => {
+  const { points, segments } = useMemo(() => {
+    if (positions.length < 2) return { points: [], segments: [] };
+    
+    const allPoints: THREE.Vector3[] = [];
+    const segmentIndices: number[] = [];
+    
+    for (let i = 0; i < positions.length; i++) {
+      const p = positions[i];
       const radius = 2 + (p.alt / 6371) * 0.4;
-      return latLngToVector3(p.lat, p.lng, radius);
-    });
+      const point = latLngToVector3(p.lat, p.lng, radius);
+      
+      // Check for longitude wrap-around (crossing date line)
+      if (i > 0) {
+        const prevLng = positions[i - 1].lng;
+        const currLng = p.lng;
+        const lngDiff = Math.abs(currLng - prevLng);
+        
+        // If longitude jump is > 180, we're crossing the date line - start new segment
+        if (lngDiff > 180) {
+          segmentIndices.push(allPoints.length);
+        }
+      }
+      
+      allPoints.push(point);
+    }
+    
+    return { points: allPoints, segments: segmentIndices };
   }, [positions]);
 
   if (points.length < 2) return null;
 
-  const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-  const lineMaterial = new THREE.LineBasicMaterial({ 
-    color, 
-    opacity: 0.8, 
-    transparent: true,
-    linewidth: 2 
-  });
+  // Create separate line segments to handle date line crossing
+  const lineSegments = useMemo(() => {
+    if (segments.length === 0) {
+      return [points];
+    }
+    
+    const result: THREE.Vector3[][] = [];
+    let startIdx = 0;
+    
+    for (const segIdx of segments) {
+      if (segIdx > startIdx) {
+        result.push(points.slice(startIdx, segIdx));
+      }
+      startIdx = segIdx;
+    }
+    
+    if (startIdx < points.length) {
+      result.push(points.slice(startIdx));
+    }
+    
+    return result;
+  }, [points, segments]);
 
-  return <primitive object={new THREE.Line(lineGeometry, lineMaterial)} />;
+  return (
+    <group>
+      {lineSegments.map((segmentPoints, idx) => {
+        if (segmentPoints.length < 2) return null;
+        const geometry = new THREE.BufferGeometry().setFromPoints(segmentPoints);
+        const material = new THREE.LineBasicMaterial({ 
+          color, 
+          opacity: 0.9, 
+          transparent: true,
+          linewidth: 2 
+        });
+        return <primitive key={idx} object={new THREE.Line(geometry, material)} />;
+      })}
+    </group>
+  );
 }
 
-// Tracked satellite orbit (colored by satellite)
+// Tracked satellite orbit (colored by satellite) - handles date line crossing
 function TrackedOrbit({ positions, color }: { positions: { lat: number; lng: number; alt: number }[]; color: string }) {
-  const points = useMemo(() => {
-    return positions.map((p) => {
+  const { points, segments } = useMemo(() => {
+    if (positions.length < 2) return { points: [], segments: [] };
+    
+    const allPoints: THREE.Vector3[] = [];
+    const segmentIndices: number[] = [];
+    
+    for (let i = 0; i < positions.length; i++) {
+      const p = positions[i];
       const radius = 2 + (p.alt / 6371) * 0.4;
-      return latLngToVector3(p.lat, p.lng, radius);
-    });
+      const point = latLngToVector3(p.lat, p.lng, radius);
+      
+      if (i > 0) {
+        const prevLng = positions[i - 1].lng;
+        const currLng = p.lng;
+        const lngDiff = Math.abs(currLng - prevLng);
+        
+        if (lngDiff > 180) {
+          segmentIndices.push(allPoints.length);
+        }
+      }
+      
+      allPoints.push(point);
+    }
+    
+    return { points: allPoints, segments: segmentIndices };
   }, [positions]);
 
   if (points.length < 2) return null;
 
-  const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-  const lineMaterial = new THREE.LineBasicMaterial({ 
-    color, 
-    opacity: 0.5, 
-    transparent: true 
-  });
+  const lineSegments = useMemo(() => {
+    if (segments.length === 0) {
+      return [points];
+    }
+    
+    const result: THREE.Vector3[][] = [];
+    let startIdx = 0;
+    
+    for (const segIdx of segments) {
+      if (segIdx > startIdx) {
+        result.push(points.slice(startIdx, segIdx));
+      }
+      startIdx = segIdx;
+    }
+    
+    if (startIdx < points.length) {
+      result.push(points.slice(startIdx));
+    }
+    
+    return result;
+  }, [points, segments]);
 
-  return <primitive object={new THREE.Line(lineGeometry, lineMaterial)} />;
+  return (
+    <group>
+      {lineSegments.map((segmentPoints, idx) => {
+        if (segmentPoints.length < 2) return null;
+        const geometry = new THREE.BufferGeometry().setFromPoints(segmentPoints);
+        const material = new THREE.LineBasicMaterial({ 
+          color, 
+          opacity: 0.7, 
+          transparent: true 
+        });
+        return <primitive key={idx} object={new THREE.Line(geometry, material)} />;
+      })}
+    </group>
+  );
 }
 
 function ObserverMarker({ lat, lng }: { lat: number; lng: number }) {
   const position = useMemo(() => latLngToVector3(lat, lng, 2.02), [lat, lng]);
   const pulseRef = useRef<THREE.Mesh>(null);
+  const cameraDistance = useCameraDistance();
+  
+  // Calculate zoom-responsive scale
+  const zoomScale = Math.max(0.3, Math.min(1, cameraDistance / 5.5));
+  const tooltipScale = Math.max(4, Math.min(12, cameraDistance * 1.5));
+  const markerSize = 0.025 * zoomScale;
+  const ringInner = 0.035 * zoomScale;
+  const ringOuter = 0.05 * zoomScale;
   
   useFrame((state) => {
     if (pulseRef.current) {
@@ -239,15 +390,21 @@ function ObserverMarker({ lat, lng }: { lat: number; lng: number }) {
   return (
     <group position={position}>
       <mesh>
-        <sphereGeometry args={[0.025, 16, 16]} />
+        <sphereGeometry args={[markerSize, 16, 16]} />
         <meshBasicMaterial color="#ef4444" />
       </mesh>
       <mesh ref={pulseRef} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.035, 0.05, 32]} />
+        <ringGeometry args={[ringInner, ringOuter, 32]} />
         <meshBasicMaterial color="#ef4444" transparent opacity={0.6} side={THREE.DoubleSide} />
       </mesh>
-      <Html distanceFactor={8}>
-        <div className="bg-red-500 text-white px-2 py-1 rounded text-xs font-medium shadow-lg">
+      <Html distanceFactor={tooltipScale} style={{ pointerEvents: 'none' }}>
+        <div 
+          className="bg-red-500 text-white rounded font-medium shadow-lg whitespace-nowrap"
+          style={{
+            padding: `${Math.max(2, 4 * zoomScale)}px ${Math.max(4, 8 * zoomScale)}px`,
+            fontSize: `${Math.max(9, 12 * zoomScale)}px`,
+          }}
+        >
           📍 You
         </div>
       </Html>
@@ -278,60 +435,65 @@ function Scene() {
         <Earth />
       </Suspense>
       
-      {showObserver && <ObserverMarker lat={observer.lat} lng={observer.lng} />}
-      
-      {/* Selected satellite orbit - GREEN */}
-      {selectedOrbitPositions.length > 0 && (
-        <OrbitPath 
-          positions={selectedOrbitPositions.map(p => ({
-            lat: p.satlatitude,
-            lng: p.satlongitude,
-            alt: p.sataltitude
-          }))} 
-          color="#00ff00"
-        />
-      )}
-      
-      {/* Satellites from search results */}
-      {satellitesAbove.map((sat) => (
-        <Satellite
-          key={sat.satid}
-          lat={sat.satlat}
-          lng={sat.satlng}
-          alt={sat.satalt}
-          name={sat.satname}
-          color="#4ecdc4"
-          isSelected={selectedSatellite?.satid === sat.satid}
-          onClick={() => setSelectedSatellite(sat)}
-        />
-      ))}
-      
-      {/* Tracked satellites with their orbits */}
-      {trackedSatellites.map((sat) => (
-        <group key={sat.id}>
-          {sat.positions.length > 0 && (
-            <>
-              <Satellite
-                lat={sat.positions[0].satlatitude}
-                lng={sat.positions[0].satlongitude}
-                alt={sat.positions[0].sataltitude}
-                name={sat.name}
-                color={sat.color}
-                isSelected={false}
-                onClick={() => {}}
-              />
-              <TrackedOrbit
-                positions={sat.positions.map((p) => ({
-                  lat: p.satlatitude,
-                  lng: p.satlongitude,
-                  alt: p.sataltitude,
-                }))}
-                color={sat.color}
-              />
-            </>
-          )}
-        </group>
-      ))}
+      <CameraDistanceProvider>
+        {showObserver && <ObserverMarker lat={observer.lat} lng={observer.lng} />}
+        
+        {/* Selected satellite orbit - GREEN */}
+        {selectedOrbitPositions.length > 0 && (
+          <OrbitPath 
+            positions={selectedOrbitPositions.map(p => ({
+              lat: p.satlatitude,
+              lng: p.satlongitude,
+              alt: p.sataltitude
+            }))} 
+            color="#00ff00"
+          />
+        )}
+        
+        {/* Satellites from search results */}
+        {satellitesAbove.map((sat) => (
+          <Satellite
+            key={sat.satid}
+            lat={sat.satlat}
+            lng={sat.satlng}
+            alt={sat.satalt}
+            name={sat.satname}
+            color="#4ecdc4"
+            isSelected={selectedSatellite?.satid === sat.satid}
+            onClick={() => setSelectedSatellite(sat)}
+          />
+        ))}
+        
+        {/* Tracked satellites with their trail from start to current */}
+        {trackedSatellites.map((sat) => (
+          <group key={sat.id}>
+            {sat.positions.length > 0 && (
+              <>
+                <Satellite
+                  lat={sat.positions[0].satlatitude}
+                  lng={sat.positions[0].satlongitude}
+                  alt={sat.positions[0].sataltitude}
+                  name={sat.name}
+                  color={sat.color}
+                  isSelected={false}
+                  onClick={() => {}}
+                />
+                {/* Trail line: from tracking start to current position */}
+                {sat.historicalPositions && sat.historicalPositions.length > 1 && (
+                  <TrackedOrbit
+                    positions={sat.historicalPositions.map((p) => ({
+                      lat: p.satlatitude,
+                      lng: p.satlongitude,
+                      alt: p.sataltitude,
+                    }))}
+                    color={sat.color}
+                  />
+                )}
+              </>
+            )}
+          </group>
+        ))}
+      </CameraDistanceProvider>
       
       <OrbitControls 
         enablePan={false} 

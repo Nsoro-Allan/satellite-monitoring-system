@@ -11,7 +11,9 @@ interface ObserverLocation {
 interface TrackedSatellite {
   id: number;
   name: string;
-  positions: Position[];
+  positions: Position[]; // Current/future positions from API
+  historicalPositions: Position[]; // Trail: accumulated positions from start to current
+  startTime: number;
   color: string;
 }
 
@@ -25,7 +27,7 @@ interface SatelliteStore {
   satellitesAbove: SatelliteAbove[];
   setSatellitesAbove: (satellites: SatelliteAbove[]) => void;
   trackedSatellites: TrackedSatellite[];
-  addTrackedSatellite: (satellite: TrackedSatellite) => void;
+  addTrackedSatellite: (satellite: { id: number; name: string; positions: Position[]; color: string }) => void;
   removeTrackedSatellite: (id: number) => void;
   updateTrackedPositions: (id: number, positions: Position[]) => void;
   selectedSatellite: SatelliteAbove | null;
@@ -40,7 +42,7 @@ interface SatelliteStore {
   setIsLoading: (loading: boolean) => void;
 }
 
-const COLORS = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#fd79a8', '#a29bfe'];
+const COLORS = ['#00ff00', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#fd79a8', '#a29bfe'];
 
 export const useSatelliteStore = create<SatelliteStore>()(
   persist(
@@ -58,15 +60,44 @@ export const useSatelliteStore = create<SatelliteStore>()(
         const current = get().trackedSatellites;
         if (current.find((s) => s.id === satellite.id)) return;
         const color = COLORS[current.length % COLORS.length];
-        set({ trackedSatellites: [...current, { ...satellite, color }] });
+        const startPosition = satellite.positions[0];
+        set({ 
+          trackedSatellites: [...current, { 
+            ...satellite, 
+            color,
+            startTime: Date.now(),
+            historicalPositions: startPosition ? [startPosition] : []
+          }] 
+        });
       },
       removeTrackedSatellite: (id) =>
         set({ trackedSatellites: get().trackedSatellites.filter((s) => s.id !== id) }),
       updateTrackedPositions: (id, positions) =>
         set({
-          trackedSatellites: get().trackedSatellites.map((s) =>
-            s.id === id ? { ...s, positions } : s
-          ),
+          trackedSatellites: get().trackedSatellites.map((s) => {
+            if (s.id !== id) return s;
+            
+            // Get current position (first in the positions array)
+            const currentPos = positions[0];
+            if (!currentPos) return { ...s, positions };
+            
+            // Check if we should add to historical trail
+            const lastHistorical = s.historicalPositions[s.historicalPositions.length - 1];
+            let newHistorical = [...s.historicalPositions];
+            
+            // Add position if it's different enough from the last one
+            if (!lastHistorical || 
+                Math.abs(currentPos.satlatitude - lastHistorical.satlatitude) > 0.05 ||
+                Math.abs(currentPos.satlongitude - lastHistorical.satlongitude) > 0.05) {
+              newHistorical.push(currentPos);
+              // Keep max 300 points for performance
+              if (newHistorical.length > 300) {
+                newHistorical = newHistorical.slice(-300);
+              }
+            }
+            
+            return { ...s, positions, historicalPositions: newHistorical };
+          }),
         }),
       selectedSatellite: null,
       setSelectedSatellite: (satellite) => set({ selectedSatellite: satellite, selectedOrbitPositions: [] }),

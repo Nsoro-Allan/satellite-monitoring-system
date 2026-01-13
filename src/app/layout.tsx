@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Satellite Monitor - Real-time Satellite Tracking",
   description: "Track satellites in real-time with 3D globe visualization using N2YO API",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

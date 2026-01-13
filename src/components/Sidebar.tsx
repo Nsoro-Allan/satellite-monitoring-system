@@ -108,21 +108,72 @@ function LocationSection() {
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [loading, setLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [hasAskedPermission, setHasAskedPermission] = useState(false);
 
   useEffect(() => {
     setLat(observer.lat.toFixed(4));
     setLng(observer.lng.toFixed(4));
   }, [observer.lat, observer.lng]);
 
-  const handleGetLocation = () => {
-    if (!navigator.geolocation) return;
+  // Auto-prompt for location on first load
+  useEffect(() => {
+    if (hasAskedPermission) return;
+    
+    // Check if we have a stored location that's not the default
+    const isDefaultLocation = observer.lat === 40.7128 && observer.lng === -74.006;
+    
+    if (isDefaultLocation && navigator.geolocation) {
+      setHasAskedPermission(true);
+      // Small delay to let the UI render first
+      const timer = setTimeout(() => {
+        handleGetLocation(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasAskedPermission, observer.lat, observer.lng]);
+
+  const handleGetLocation = (silent = false) => {
+    if (!navigator.geolocation) {
+      if (!silent) setLocationError('Geolocation not supported');
+      return;
+    }
+    
     setLoading(true);
+    setLocationError(null);
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setObserver({ lat: pos.coords.latitude, lng: pos.coords.longitude, alt: 0 });
+        setObserver({ 
+          lat: pos.coords.latitude, 
+          lng: pos.coords.longitude, 
+          alt: pos.coords.altitude || 0 
+        });
         setLoading(false);
       },
-      () => setLoading(false)
+      (error) => {
+        setLoading(false);
+        if (!silent) {
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setLocationError('Location permission denied. Please enable it in your browser settings.');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setLocationError('Location unavailable. Try again later.');
+              break;
+            case error.TIMEOUT:
+              setLocationError('Location request timed out. Try again.');
+              break;
+            default:
+              setLocationError('Could not get location.');
+          }
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      }
     );
   };
 
@@ -162,14 +213,22 @@ function LocationSection() {
           </div>
         </div>
         
+        {locationError && (
+          <p className="text-xs text-red-400 bg-red-900/20 p-2 rounded">{locationError}</p>
+        )}
+        
         <button
-          onClick={handleGetLocation}
+          onClick={() => handleGetLocation(false)}
           disabled={loading}
           className="w-full py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <MapPin size={14} />}
-          Use My Location
+          {loading ? 'Getting Location...' : 'Use My Location'}
         </button>
+        
+        <p className="text-xs text-gray-500 text-center">
+          Click the button to pinpoint your exact location on the globe
+        </p>
       </div>
     </Section>
   );
@@ -183,31 +242,58 @@ function SearchByNameSection() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  // Known satellites for direct lookup (when not found in "above" results)
+  const KNOWN_SATELLITES: Record<string, { id: number; name: string }[]> = {
+    'iss': [{ id: 25544, name: 'ISS (ZARYA)' }],
+    'zarya': [{ id: 25544, name: 'ISS (ZARYA)' }],
+    'space station': [{ id: 25544, name: 'ISS (ZARYA)' }],
+    'hubble': [{ id: 20580, name: 'Hubble Space Telescope' }],
+    'tiangong': [{ id: 48274, name: 'CSS (TIANHE)' }],
+    'tianhe': [{ id: 48274, name: 'CSS (TIANHE)' }],
+    'terra': [{ id: 25994, name: 'Terra' }],
+    'aqua': [{ id: 27424, name: 'Aqua' }],
+  };
+
   const searchSatellite = async () => {
     if (!apiKey || !query.trim()) return;
     setLoading(true);
     setSearched(true);
     
     try {
-      // Search in multiple categories to find satellites by name
-      const categories = [0, 52, 2, 18, 32]; // All, Starlink, ISS, Amateur, CubeSats
+      const queryLower = query.toLowerCase().trim();
       const allResults: Array<{ satid: number; satname: string }> = [];
       
-      for (const cat of categories) {
-        const res = await fetch(
-          `/api/satellite/above?lat=${observer.lat}&lng=${observer.lng}&alt=0&radius=90&category=${cat}&apiKey=${apiKey}`
-        );
-        const data = await res.json();
-        if (data.above) {
-          const matches = data.above.filter((s: { satname: string }) => 
-            s.satname.toLowerCase().includes(query.toLowerCase())
-          );
-          allResults.push(...matches);
+      // First check known satellites for direct match
+      for (const [keyword, sats] of Object.entries(KNOWN_SATELLITES)) {
+        if (keyword.includes(queryLower) || queryLower.includes(keyword)) {
+          allResults.push(...sats.map(s => ({ satid: s.id, satname: s.name })));
         }
-        if (allResults.length >= 10) break;
       }
       
-      // Remove duplicates
+      // Then search in satellites above (if not enough results)
+      if (allResults.length < 5) {
+        const categories = [0, 52, 2, 18, 32];
+        
+        for (const cat of categories) {
+          try {
+            const res = await fetch(
+              `/api/satellite/above?lat=${observer.lat}&lng=${observer.lng}&alt=0&radius=90&category=${cat}&apiKey=${apiKey}`
+            );
+            const data = await res.json();
+            if (data.above) {
+              const matches = data.above.filter((s: { satname: string }) => 
+                s.satname.toLowerCase().includes(queryLower)
+              );
+              allResults.push(...matches);
+            }
+          } catch (e) {
+            console.error('Category search failed:', e);
+          }
+          if (allResults.length >= 10) break;
+        }
+      }
+      
+      // Remove duplicates by satid
       const unique = allResults.filter((v, i, a) => a.findIndex(t => t.satid === v.satid) === i);
       setResults(unique.slice(0, 10));
     } catch (error) {
@@ -218,20 +304,27 @@ function SearchByNameSection() {
   };
 
   const trackSatellite = async (satid: number, satname: string) => {
+    if (!apiKey) return;
+    
     try {
       const res = await fetch(
         `/api/satellite/positions?satId=${satid}&lat=${observer.lat}&lng=${observer.lng}&alt=0&seconds=300&apiKey=${apiKey}`
       );
       const data = await res.json();
-      addTrackedSatellite({
-        id: satid,
-        name: satname,
-        positions: data.positions || [],
-        color: '',
-      });
-      setQuery('');
-      setResults([]);
-      setSearched(false);
+      
+      if (data.positions && data.positions.length > 0) {
+        addTrackedSatellite({
+          id: satid,
+          name: satname,
+          positions: data.positions,
+          color: '',
+        });
+        setQuery('');
+        setResults([]);
+        setSearched(false);
+      } else {
+        console.error('No positions returned for satellite');
+      }
     } catch (error) {
       console.error('Failed to track:', error);
     }
