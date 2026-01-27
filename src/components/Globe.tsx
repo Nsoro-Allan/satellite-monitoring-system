@@ -419,6 +419,7 @@ function Scene() {
     observer, 
     selectedSatellite, 
     setSelectedSatellite, 
+    selectTrackedSatellite,
     showObserver,
     selectedOrbitPositions 
   } = useSatelliteStore();
@@ -475,8 +476,8 @@ function Scene() {
                   alt={sat.positions[0].sataltitude}
                   name={sat.name}
                   color={sat.color}
-                  isSelected={false}
-                  onClick={() => {}}
+                  isSelected={selectedSatellite?.satid === sat.id}
+                  onClick={() => selectTrackedSatellite(sat.id)}
                 />
                 {/* Trail line: from tracking start to current position */}
                 {sat.historicalPositions && sat.historicalPositions.length > 1 && (

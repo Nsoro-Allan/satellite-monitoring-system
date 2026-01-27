@@ -32,6 +32,7 @@ interface SatelliteStore {
   updateTrackedPositions: (id: number, positions: Position[]) => void;
   selectedSatellite: SatelliteAbove | null;
   setSelectedSatellite: (satellite: SatelliteAbove | null) => void;
+  selectTrackedSatellite: (id: number) => void;
   selectedOrbitPositions: Position[];
   setSelectedOrbitPositions: (positions: Position[]) => void;
   searchRadius: number;
@@ -101,6 +102,26 @@ export const useSatelliteStore = create<SatelliteStore>()(
         }),
       selectedSatellite: null,
       setSelectedSatellite: (satellite) => set({ selectedSatellite: satellite, selectedOrbitPositions: [] }),
+      selectTrackedSatellite: (id) => {
+        const tracked = get().trackedSatellites.find((s) => s.id === id);
+        if (!tracked || tracked.positions.length === 0) return;
+        
+        const currentPos = tracked.positions[0];
+        const satelliteAbove: SatelliteAbove = {
+          satid: tracked.id,
+          satname: tracked.name,
+          satlat: currentPos.satlatitude,
+          satlng: currentPos.satlongitude,
+          satalt: currentPos.sataltitude,
+          intDesignator: '',
+          launchDate: '',
+        };
+        
+        set({ 
+          selectedSatellite: satelliteAbove,
+          selectedOrbitPositions: tracked.positions
+        });
+      },
       selectedOrbitPositions: [],
       setSelectedOrbitPositions: (positions) => set({ selectedOrbitPositions: positions }),
       searchRadius: 70,
@@ -118,6 +139,7 @@ export const useSatelliteStore = create<SatelliteStore>()(
         showObserver: state.showObserver,
         searchRadius: state.searchRadius,
         categoryId: state.categoryId,
+        trackedSatellites: state.trackedSatellites,
       }),
     }
   )
