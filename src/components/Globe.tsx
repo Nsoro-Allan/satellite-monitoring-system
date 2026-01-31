@@ -69,6 +69,22 @@ function SatelliteGLB({ modelPath, scale }: { modelPath: string; scale: number }
   const { scene } = useGLTF(modelPath);
   const clonedScene = useMemo(() => {
     const clone = scene.clone();
+    // Enhance materials for better visibility
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        if (mesh.material) {
+          const material = mesh.material as THREE.MeshStandardMaterial;
+          // Add emissive glow to make satellites more visible (doesn't cast light)
+          material.emissive = new THREE.Color(0x88ddff);
+          material.emissiveIntensity = 0.5;
+          // Increase brightness without casting light
+          material.metalness = 0.8;
+          material.roughness = 0.3;
+          material.needsUpdate = true;
+        }
+      }
+    });
     return clone;
   }, [scene]);
 
@@ -426,10 +442,10 @@ function Scene() {
 
   return (
     <>
-      <ambientLight intensity={1} />
-      <directionalLight position={[5, 3, 5]} intensity={1.5} />
-      <directionalLight position={[-5, -3, -5]} intensity={0.5} />
-      <pointLight position={[0, 0, 0]} intensity={0.5} />
+      <ambientLight intensity={1.5} />
+      <directionalLight position={[5, 3, 5]} intensity={2} />
+      <directionalLight position={[-5, -3, -5]} intensity={1} />
+      <pointLight position={[0, 0, 0]} intensity={1} />
       <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={1} />
       
       <Suspense fallback={null}>
@@ -507,6 +523,20 @@ function Scene() {
 }
 
 export default function Globe() {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="w-full h-full bg-gradient-to-b from-slate-900 to-black flex items-center justify-center">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full h-full bg-gradient-to-b from-slate-900 to-black">
       <Canvas camera={{ position: [0, 0, 5.5], fov: 45 }}>

@@ -307,10 +307,13 @@ function SearchByNameSection() {
     if (!apiKey) return;
     
     try {
-      const res = await fetch(
-        `/api/satellite/positions?satId=${satid}&lat=${observer.lat}&lng=${observer.lng}&alt=0&seconds=300&apiKey=${apiKey}`
-      );
+      const url = `/api/satellite/positions?satId=${satid}&lat=${observer.lat}&lng=${observer.lng}&alt=0&seconds=300&apiKey=${apiKey}`;
+      console.log('Tracking satellite:', satname, 'ID:', satid);
+      
+      const res = await fetch(url);
       const data = await res.json();
+      
+      console.log('Track response:', data);
       
       if (data.positions && data.positions.length > 0) {
         addTrackedSatellite({
@@ -323,10 +326,12 @@ function SearchByNameSection() {
         setResults([]);
         setSearched(false);
       } else {
-        console.error('No positions returned for satellite');
+        console.error('No positions returned for satellite:', satname);
+        alert(`Unable to track ${satname}. The satellite may be out of range or the API returned no data. Try adjusting your location or try again later.`);
       }
     } catch (error) {
       console.error('Failed to track:', error);
+      alert(`Failed to track ${satname}. Please check your API key and try again.`);
     }
   };
 

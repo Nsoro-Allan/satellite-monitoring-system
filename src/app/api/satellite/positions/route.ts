@@ -16,12 +16,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(
-      `${BASE_URL}/positions/${satId}/${lat}/${lng}/${alt}/${seconds}/&apiKey=${apiKey}`
-    );
+    const url = `${BASE_URL}/positions/${satId}/${lat}/${lng}/${alt}/${seconds}/?apiKey=${apiKey}`;
+    console.log('Fetching positions from:', url);
+    
+    const res = await fetch(url);
     const data = await res.json();
+    
+    console.log('Positions response:', data);
+    
+    if (!res.ok) {
+      console.error('N2YO API error:', data);
+      return NextResponse.json({ error: data.error || 'API request failed', positions: [] }, { status: res.status });
+    }
+    
     return NextResponse.json(data);
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch positions' }, { status: 500 });
+  } catch (error) {
+    console.error('Failed to fetch positions:', error);
+    return NextResponse.json({ error: 'Failed to fetch positions', positions: [] }, { status: 500 });
   }
 }
