@@ -5,6 +5,86 @@ import { useSatelliteStore } from '@/store/satellite-store';
 import { VisualPass, RadioPass } from '@/lib/n2yo';
 import { X, Eye, Radio, FileText, Loader2, Clock, Compass, Satellite, Globe } from 'lucide-react';
 
+// Helper function to determine country from international designator
+function getCountryFromDesignator(designator: string): string {
+  if (!designator) return 'Unknown';
+  const year = designator.substring(0, 4);
+  const launchSite = designator.substring(5, 8);
+  
+  // Common launch site codes
+  const launchSites: Record<string, string> = {
+    'A': '🇷🇺 Russia (Baikonur)',
+    'B': '🇷🇺 Russia (Plesetsk)',
+    'C': '🇨🇳 China',
+    'D': '🇮🇳 India',
+    'E': '🇷🇺 Russia (Svobodny)',
+    'F': '🇷🇺 Russia',
+    'J': '🇯🇵 Japan',
+    'K': '🇰🇵 North Korea',
+    'L': '🇫🇷 France (Kourou)',
+    'M': '🇮🇱 Israel',
+    'N': '🇳🇿 New Zealand',
+    'P': '🇮🇷 Iran',
+    'S': '🇺🇸 United States',
+    'T': '🇺🇸 United States (Vandenberg)',
+    'U': '🇺🇸 United States',
+    'V': '🇺🇸 United States',
+    'W': '🇺🇸 United States',
+  };
+  
+  const code = launchSite.charAt(0);
+  return launchSites[code] || `Launch: ${year}`;
+}
+
+// Helper function to determine satellite type
+function getSatelliteType(name: string): string {
+  const nameLower = name.toLowerCase();
+  
+  if (nameLower.includes('starlink')) return '🛰️ Communications (Starlink)';
+  if (nameLower.includes('oneweb')) return '🛰️ Communications (OneWeb)';
+  if (nameLower.includes('iss') || nameLower.includes('zarya')) return '🏠 Space Station';
+  if (nameLower.includes('hubble')) return '🔭 Space Telescope';
+  if (nameLower.includes('gps') || nameLower.includes('navstar')) return '📍 Navigation (GPS)';
+  if (nameLower.includes('glonass')) return '📍 Navigation (GLONASS)';
+  if (nameLower.includes('galileo')) return '📍 Navigation (Galileo)';
+  if (nameLower.includes('beidou')) return '📍 Navigation (BeiDou)';
+  if (nameLower.includes('weather') || nameLower.includes('noaa') || nameLower.includes('goes')) return '🌦️ Weather';
+  if (nameLower.includes('terra') || nameLower.includes('aqua') || nameLower.includes('landsat')) return '🌍 Earth Observation';
+  if (nameLower.includes('iridium')) return '📞 Communications (Iridium)';
+  if (nameLower.includes('globalstar')) return '📞 Communications (Globalstar)';
+  if (nameLower.includes('intelsat')) return '📡 Communications (Intelsat)';
+  if (nameLower.includes('tiangong') || nameLower.includes('tianhe')) return '🏠 Space Station (Chinese)';
+  if (nameLower.includes('cubesat')) return '📦 CubeSat';
+  if (nameLower.includes('cosmos')) return '🛰️ Military/Research (Russia)';
+  
+  return '🛰️ Satellite';
+}
+
+// Helper function to determine satellite owner
+function getSatelliteOwner(name: string): string {
+  const nameLower = name.toLowerCase();
+  
+  if (nameLower.includes('starlink')) return 'Operator: SpaceX (USA)';
+  if (nameLower.includes('oneweb')) return 'Operator: OneWeb (UK/India)';
+  if (nameLower.includes('iss') || nameLower.includes('zarya')) return 'Operator: International (NASA, Roscosmos, ESA, JAXA, CSA)';
+  if (nameLower.includes('hubble')) return 'Operator: NASA/ESA (USA/Europe)';
+  if (nameLower.includes('gps') || nameLower.includes('navstar')) return 'Operator: US Space Force';
+  if (nameLower.includes('glonass')) return 'Operator: Russian Space Forces';
+  if (nameLower.includes('galileo')) return 'Operator: European Union';
+  if (nameLower.includes('beidou')) return 'Operator: China National Space Administration';
+  if (nameLower.includes('noaa')) return 'Operator: NOAA (USA)';
+  if (nameLower.includes('goes')) return 'Operator: NOAA (USA)';
+  if (nameLower.includes('terra') || nameLower.includes('aqua')) return 'Operator: NASA (USA)';
+  if (nameLower.includes('landsat')) return 'Operator: NASA/USGS (USA)';
+  if (nameLower.includes('iridium')) return 'Operator: Iridium Communications (USA)';
+  if (nameLower.includes('globalstar')) return 'Operator: Globalstar Inc. (USA)';
+  if (nameLower.includes('intelsat')) return 'Operator: Intelsat (Luxembourg)';
+  if (nameLower.includes('tiangong') || nameLower.includes('tianhe')) return 'Operator: CNSA (China)';
+  if (nameLower.includes('cosmos')) return 'Operator: Roscosmos (Russia)';
+  
+  return 'Operator: Various';
+}
+
 export default function SatellitePanel() {
   const { 
     selectedSatellite, 
@@ -154,26 +234,53 @@ export default function SatellitePanel() {
         )}
 
         {!loading && activeTab === 'info' && (
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-gray-800 rounded-lg p-3">
-              <p className="text-gray-500 text-xs">Latitude</p>
-              <p className="text-white font-medium">{selectedSatellite.satlat.toFixed(4)}°</p>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Latitude</p>
+                <p className="text-white font-medium">{selectedSatellite.satlat.toFixed(4)}°</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Longitude</p>
+                <p className="text-white font-medium">{selectedSatellite.satlng.toFixed(4)}°</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Altitude</p>
+                <p className="text-white font-medium">{selectedSatellite.satalt.toFixed(1)} km</p>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-500 text-xs">NORAD ID</p>
+                <p className="text-white font-medium">#{selectedSatellite.satid}</p>
+              </div>
             </div>
-            <div className="bg-gray-800 rounded-lg p-3">
-              <p className="text-gray-500 text-xs">Longitude</p>
-              <p className="text-white font-medium">{selectedSatellite.satlng.toFixed(4)}°</p>
+            
+            {selectedSatellite.launchDate && (
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-500 text-xs">Launch Date</p>
+                <p className="text-white font-medium">{selectedSatellite.launchDate}</p>
+              </div>
+            )}
+            
+            {selectedSatellite.intDesignator && (
+              <div className="bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-500 text-xs">International Designator</p>
+                <p className="text-white font-medium">{selectedSatellite.intDesignator}</p>
+                <p className="text-gray-400 text-xs mt-1">
+                  {getCountryFromDesignator(selectedSatellite.intDesignator)}
+                </p>
+              </div>
+            )}
+            
+            <div className="bg-gradient-to-r from-cyan-900/30 to-blue-900/30 rounded-lg p-3 border border-cyan-800/30">
+              <p className="text-gray-400 text-xs mb-1">Satellite Type</p>
+              <p className="text-white font-medium">{getSatelliteType(selectedSatellite.satname)}</p>
+              <p className="text-gray-400 text-xs mt-2">{getSatelliteOwner(selectedSatellite.satname)}</p>
             </div>
+            
             <div className="bg-gray-800 rounded-lg p-3">
-              <p className="text-gray-500 text-xs">Altitude</p>
-              <p className="text-white font-medium">{selectedSatellite.satalt.toFixed(1)} km</p>
-            </div>
-            <div className="bg-gray-800 rounded-lg p-3">
-              <p className="text-gray-500 text-xs">Launch Date</p>
-              <p className="text-white font-medium">{selectedSatellite.launchDate || 'Unknown'}</p>
-            </div>
-            <div className="col-span-2 bg-gray-800 rounded-lg p-3">
-              <p className="text-gray-500 text-xs">International Designator</p>
-              <p className="text-white font-medium">{selectedSatellite.intDesignator || 'N/A'}</p>
+              <p className="text-gray-500 text-xs mb-2">Real-time Position</p>
+              <p className="text-green-400 text-xs">● Live tracking active</p>
+              <p className="text-gray-400 text-xs mt-1">Updates every 10 seconds</p>
             </div>
           </div>
         )}

@@ -76,7 +76,7 @@ export default function Home() {
     }
   }, [apiKey, observer, searchRadius, categoryId, setSatellitesAbove, setIsLoading]);
 
-  // Update tracked satellite positions periodically
+  // Update tracked satellite positions periodically (every 5 seconds for real-time)
   useEffect(() => {
     if (!apiKey || trackedSatellites.length === 0) return;
 
@@ -96,8 +96,10 @@ export default function Home() {
       }
     };
 
+    // Initial update
     updatePositions();
-    const interval = setInterval(updatePositions, 30000);
+    // Update every 5seconds for real-time tracking
+    const interval = setInterval(updatePositions, 5000);
     return () => clearInterval(interval);
   }, [apiKey, trackedSatellites.length, observer, updateTrackedPositions]);
 

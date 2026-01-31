@@ -16,12 +16,22 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(
-      `${BASE_URL}/above/${lat}/${lng}/${alt}/${radius}/${category}/&apiKey=${apiKey}`
-    );
+    const url = `${BASE_URL}/above/${lat}/${lng}/${alt}/${radius}/${category}/?apiKey=${apiKey}`;
+    console.log('Fetching satellites above from:', url);
+    
+    const res = await fetch(url);
     const data = await res.json();
+    
+    console.log('Satellites above response:', data);
+    
+    if (!res.ok) {
+      console.error('N2YO API error:', data);
+      return NextResponse.json({ error: data.error || 'API request failed', above: [] }, { status: res.status });
+    }
+    
     return NextResponse.json(data);
-  } catch {
-    return NextResponse.json({ error: 'Failed to fetch satellites above' }, { status: 500 });
+  } catch (error) {
+    console.error('Failed to fetch satellites above:', error);
+    return NextResponse.json({ error: 'Failed to fetch satellites above', above: [] }, { status: 500 });
   }
 }

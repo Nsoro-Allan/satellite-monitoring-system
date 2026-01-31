@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(`${BASE_URL}/tle/${satId}&apiKey=${apiKey}`);
+    const url = `${BASE_URL}/tle/${satId}/?apiKey=${apiKey}`;
+    const res = await fetch(url);
     const data = await res.json();
     return NextResponse.json(data);
   } catch {

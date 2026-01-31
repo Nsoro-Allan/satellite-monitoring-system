@@ -17,9 +17,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(
-      `${BASE_URL}/radiopasses/${satId}/${lat}/${lng}/${alt}/${days}/${minElevation}/&apiKey=${apiKey}`
-    );
+    const url = `${BASE_URL}/radiopasses/${satId}/${lat}/${lng}/${alt}/${days}/${minElevation}/?apiKey=${apiKey}`;
+    const res = await fetch(url);
     const data = await res.json();
     return NextResponse.json(data);
   } catch {

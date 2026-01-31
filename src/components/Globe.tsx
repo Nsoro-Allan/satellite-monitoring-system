@@ -455,18 +455,6 @@ function Scene() {
       <CameraDistanceProvider>
         {showObserver && <ObserverMarker lat={observer.lat} lng={observer.lng} />}
         
-        {/* Selected satellite orbit - GREEN */}
-        {selectedOrbitPositions.length > 0 && (
-          <OrbitPath 
-            positions={selectedOrbitPositions.map(p => ({
-              lat: p.satlatitude,
-              lng: p.satlongitude,
-              alt: p.sataltitude
-            }))} 
-            color="#00ff00"
-          />
-        )}
-        
         {/* Satellites from search results */}
         {satellitesAbove.map((sat) => (
           <Satellite
@@ -481,32 +469,19 @@ function Scene() {
           />
         ))}
         
-        {/* Tracked satellites with their trail from start to current */}
+        {/* Tracked satellites */}
         {trackedSatellites.map((sat) => (
           <group key={sat.id}>
             {sat.positions.length > 0 && (
-              <>
-                <Satellite
-                  lat={sat.positions[0].satlatitude}
-                  lng={sat.positions[0].satlongitude}
-                  alt={sat.positions[0].sataltitude}
-                  name={sat.name}
-                  color={sat.color}
-                  isSelected={selectedSatellite?.satid === sat.id}
-                  onClick={() => selectTrackedSatellite(sat.id)}
-                />
-                {/* Trail line: from tracking start to current position */}
-                {sat.historicalPositions && sat.historicalPositions.length > 1 && (
-                  <TrackedOrbit
-                    positions={sat.historicalPositions.map((p) => ({
-                      lat: p.satlatitude,
-                      lng: p.satlongitude,
-                      alt: p.sataltitude,
-                    }))}
-                    color={sat.color}
-                  />
-                )}
-              </>
+              <Satellite
+                lat={sat.positions[0].satlatitude}
+                lng={sat.positions[0].satlongitude}
+                alt={sat.positions[0].sataltitude}
+                name={sat.name}
+                color={sat.color}
+                isSelected={selectedSatellite?.satid === sat.id}
+                onClick={() => selectTrackedSatellite(sat.id)}
+              />
             )}
           </group>
         ))}

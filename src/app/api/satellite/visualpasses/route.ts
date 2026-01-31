@@ -17,9 +17,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const res = await fetch(
-      `${BASE_URL}/visualpasses/${satId}/${lat}/${lng}/${alt}/${days}/${minVisibility}/&apiKey=${apiKey}`
-    );
+    const url = `${BASE_URL}/visualpasses/${satId}/${lat}/${lng}/${alt}/${days}/${minVisibility}/?apiKey=${apiKey}`;
+    const res = await fetch(url);
     const data = await res.json();
     return NextResponse.json(data);
   } catch {
