@@ -280,7 +280,6 @@ export default function SatellitePanel() {
             <div className="bg-gray-800 rounded-lg p-3">
               <p className="text-gray-500 text-xs mb-2">Real-time Position</p>
               <p className="text-green-400 text-xs">● Live tracking active</p>
-              <p className="text-gray-400 text-xs mt-1">Updates every 10 seconds</p>
             </div>
           </div>
         )}
