@@ -123,7 +123,7 @@ function SimpleSatelliteModel() {
 
 function getModelForSatellite(name: string): { path: string; scale: number } {
   const nameLower = name.toLowerCase();
-  if (nameLower.includes('iss') || nameLower.includes('zarya') || nameLower.includes('space station')) {
+  if (nameLower.includes('iss') || nameLower.includes('zarya') || nameLower.includes('space station') || nameLower.includes('tiangong')) {
     return { path: '/ISS.glb', scale: 0.002 };
   }
   if (nameLower.includes('hubble')) {
