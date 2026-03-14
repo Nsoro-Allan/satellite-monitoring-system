@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SatelliteAbove, Position } from '@/lib/n2yo';
+import { Region } from '@/lib/regions';
 
 interface ObserverLocation {
   lat: number;
@@ -41,6 +42,10 @@ interface SatelliteStore {
   setCategoryId: (id: number) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+  selectedRegion: Region | null;
+  setSelectedRegion: (region: Region | null) => void;
+  regionFilterEnabled: boolean;
+  setRegionFilterEnabled: (enabled: boolean) => void;
 }
 
 const COLORS = ['#00ff00', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#fd79a8', '#a29bfe'];
@@ -130,6 +135,10 @@ export const useSatelliteStore = create<SatelliteStore>()(
       setCategoryId: (id) => set({ categoryId: id }),
       isLoading: false,
       setIsLoading: (loading) => set({ isLoading: loading }),
+      selectedRegion: null,
+      setSelectedRegion: (region) => set({ selectedRegion: region }),
+      regionFilterEnabled: false,
+      setRegionFilterEnabled: (enabled) => set({ regionFilterEnabled: enabled }),
     }),
     {
       name: 'satellite-store',
@@ -140,6 +149,8 @@ export const useSatelliteStore = create<SatelliteStore>()(
         searchRadius: state.searchRadius,
         categoryId: state.categoryId,
         trackedSatellites: state.trackedSatellites,
+        selectedRegion: state.selectedRegion,
+        regionFilterEnabled: state.regionFilterEnabled,
       }),
     }
   )

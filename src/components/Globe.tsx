@@ -1,509 +1,237 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState, Suspense, createContext, useContext } from 'react';
-import { Canvas, useFrame, useLoader, ThreeEvent, useThree } from '@react-three/fiber';
-import { OrbitControls, Html, Stars, useGLTF } from '@react-three/drei';
-import * as THREE from 'three';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useSatelliteStore } from '@/store/satellite-store';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-// Context to share camera distance across components
-const CameraDistanceContext = createContext<number>(5.5);
+// Dynamically import Globe to avoid SSR issues
+const GlobeComponent = dynamic(() => import('react-globe.gl'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-900 gap-4">
+      <div className="w-10 h-10 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+      <p className="text-gray-400 text-sm">Loading Globe...</p>
+    </div>
+  ),
+});
 
-function CameraDistanceProvider({ children }: { children: React.ReactNode }) {
-  const { camera } = useThree();
-  const [distance, setDistance] = useState(5.5);
-  
-  useFrame(() => {
-    const newDistance = camera.position.length();
-    if (Math.abs(newDistance - distance) > 0.1) {
-      setDistance(newDistance);
-    }
+// Model cache
+const modelCache: { [key: string]: THREE.Group } = {};
+const loader = new GLTFLoader();
+
+// Load and cache 3D models
+const loadModel = (path: string): Promise<THREE.Group> => {
+  if (modelCache[path]) {
+    return Promise.resolve(modelCache[path].clone());
+  }
+
+  return new Promise((resolve, reject) => {
+    loader.load(
+      path,
+      (gltf) => {
+        const model = gltf.scene;
+        
+        // Enhance materials for better visibility
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            if (mesh.material) {
+              const material = mesh.material as THREE.MeshStandardMaterial;
+              material.emissive = new THREE.Color(0x88ddff);
+              material.emissiveIntensity = 0.3;
+              material.metalness = 0.8;
+              material.roughness = 0.3;
+              material.needsUpdate = true;
+            }
+          }
+        });
+        
+        modelCache[path] = model;
+        resolve(model.clone());
+      },
+      undefined,
+      reject
+    );
   });
-  
-  return (
-    <CameraDistanceContext.Provider value={distance}>
-      {children}
-    </CameraDistanceContext.Provider>
-  );
-}
+};
 
-function useCameraDistance() {
-  return useContext(CameraDistanceContext);
-}
-
-function latLngToVector3(lat: number, lng: number, radius: number): THREE.Vector3 {
-  const phi = (90 - lat) * (Math.PI / 180);
-  const theta = (lng + 180) * (Math.PI / 180);
-  const x = -(radius * Math.sin(phi) * Math.cos(theta));
-  const z = radius * Math.sin(phi) * Math.sin(theta);
-  const y = radius * Math.cos(phi);
-  return new THREE.Vector3(x, y, z);
-}
-
-function Earth() {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const texture = useLoader(THREE.TextureLoader, '/earth-daylight.jpg');
-  
-  useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.0001;
-    }
-  });
-
-  return (
-    <group>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[2, 64, 64]} />
-        <meshStandardMaterial map={texture} />
-      </mesh>
-      <mesh scale={[1.015, 1.015, 1.015]}>
-        <sphereGeometry args={[2, 32, 32]} />
-        <meshBasicMaterial color="#87CEEB" transparent opacity={0.08} side={THREE.BackSide} />
-      </mesh>
-    </group>
-  );
-}
-
-// GLB Model Loader for satellites
-function SatelliteGLB({ modelPath, scale }: { modelPath: string; scale: number }) {
-  const { scene } = useGLTF(modelPath);
-  const clonedScene = useMemo(() => {
-    const clone = scene.clone();
-    // Enhance materials for better visibility
-    clone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        if (mesh.material) {
-          const material = mesh.material as THREE.MeshStandardMaterial;
-          // Add emissive glow to make satellites more visible (doesn't cast light)
-          material.emissive = new THREE.Color(0x88ddff);
-          material.emissiveIntensity = 0.5;
-          // Increase brightness without casting light
-          material.metalness = 0.8;
-          material.roughness = 0.3;
-          material.needsUpdate = true;
-        }
-      }
-    });
-    return clone;
-  }, [scene]);
-
-  return <primitive object={clonedScene} scale={scale} />;
-}
-
-// Fallback satellite model
-function SimpleSatelliteModel() {
-  const groupRef = useRef<THREE.Group>(null);
-  
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = state.clock.elapsedTime * 0.3;
-    }
-  });
-
-  return (
-    <group ref={groupRef} scale={[0.015, 0.015, 0.015]}>
-      {/* Main body */}
-      <mesh>
-        <boxGeometry args={[1, 0.6, 0.5]} />
-        <meshStandardMaterial color="#cccccc" metalness={0.5} roughness={0.5} />
-      </mesh>
-      {/* Solar panels */}
-      <mesh position={[-1.3, 0, 0]}>
-        <boxGeometry args={[1.8, 0.04, 0.8]} />
-        <meshStandardMaterial color="#1e3a5f" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <mesh position={[1.3, 0, 0]}>
-        <boxGeometry args={[1.8, 0.04, 0.8]} />
-        <meshStandardMaterial color="#1e3a5f" metalness={0.6} roughness={0.4} />
-      </mesh>
-    </group>
-  );
-}
-
-function getModelForSatellite(name: string): { path: string; scale: number } {
+// Determine which model to use based on satellite name
+const getModelPath = (name: string): { path: string; scale: number } => {
   const nameLower = name.toLowerCase();
-  if (nameLower.includes('iss') || nameLower.includes('zarya') || nameLower.includes('space station') || nameLower.includes('tiangong')) {
-    return { path: '/ISS.glb', scale: 0.002 };
+  
+  if (nameLower.includes('iss') || nameLower.includes('zarya') || 
+      nameLower.includes('space station') || nameLower.includes('tiangong') ||
+      nameLower.includes('tianhe')) {
+    return { path: '/ISS.glb', scale: 0.8 };
   }
+  
   if (nameLower.includes('hubble')) {
-    return { path: '/Hubble.glb', scale: 0.002 };
+    return { path: '/Hubble.glb', scale: 0.8 };
   }
-  return { path: '/satellite.glb', scale: 0.015 };
-}
-
-// Glowing marker for easy clicking - zoom responsive
-function SatelliteMarker({ color, isSelected }: { color: string; isSelected: boolean }) {
-  const cameraDistance = useCameraDistance();
-  // Scale marker based on camera distance (smaller when zoomed in)
-  const scale = Math.max(0.3, Math.min(1, cameraDistance / 5.5));
-  const markerSize = 0.025 * scale;
   
-  return (
-    <group scale={[scale, scale, scale]}>
-      {/* Small indicator sphere */}
-      <mesh>
-        <sphereGeometry args={[markerSize / scale, 16, 16]} />
-        <meshBasicMaterial color={isSelected ? '#00ff00' : color} transparent opacity={0.8} />
-      </mesh>
-    </group>
-  );
-}
-
-function Satellite({ 
-  lat, 
-  lng, 
-  alt, 
-  name, 
-  color,
-  isSelected,
-  onClick 
-}: { 
-  lat: number; 
-  lng: number; 
-  alt: number; 
-  name: string; 
-  color: string;
-  isSelected: boolean;
-  onClick?: () => void;
-}) {
-  const groupRef = useRef<THREE.Group>(null);
-  const [hovered, setHovered] = useState(false);
-  const cameraDistance = useCameraDistance();
-  
-  const radius = 2 + (alt / 6371) * 0.4;
-  const position = useMemo(() => latLngToVector3(lat, lng, radius), [lat, lng, radius]);
-  const model = useMemo(() => getModelForSatellite(name), [name]);
-  
-  // Scale for 3D model
-  const zoomScale = Math.max(0.2, Math.min(0.6, (cameraDistance - 3) / 8));
-  
-  useFrame((state) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.y = state.clock.elapsedTime * 0.15;
-    }
-  });
-
-  const handleClick = (e: ThreeEvent<MouseEvent>) => {
-    e.stopPropagation();
-    onClick?.();
-  };
-
-  return (
-    <group position={position}>
-      {/* Invisible clickable sphere */}
-      <mesh 
-        onClick={handleClick}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <sphereGeometry args={[0.08, 16, 16]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
-      {/* Glowing marker */}
-      <SatelliteMarker color={hovered ? '#ffffff' : color} isSelected={isSelected} />
-      
-      {/* 3D Model */}
-      <group ref={groupRef} scale={[zoomScale, zoomScale, zoomScale]}>
-        <Suspense fallback={<SimpleSatelliteModel />}>
-          <SatelliteGLB modelPath={model.path} scale={model.scale} />
-        </Suspense>
-      </group>
-      
-      {/* Small compact tooltip - fixed size, not 3D scaled */}
-      {(hovered || isSelected) && (
-        <Html
-          style={{ 
-            pointerEvents: 'none',
-            transform: 'translate(-50%, -120%)',
-          }}
-          center={false}
-        >
-          <div 
-            className={`rounded shadow-md border ${
-              isSelected 
-                ? 'bg-green-900/95 border-green-500 text-green-100' 
-                : 'bg-gray-900/95 border-cyan-500/50 text-white'
-            }`}
-            style={{
-              padding: '4px 8px',
-              fontSize: '11px',
-              lineHeight: '1.3',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            <div className="font-semibold">{name}</div>
-            <div className="text-gray-300" style={{ fontSize: '10px' }}>{alt.toFixed(0)} km</div>
-          </div>
-        </Html>
-      )}
-    </group>
-  );
-}
-
-// Orbit path visualization - GREEN line with smooth curve around globe
-function OrbitPath({ positions, color = '#00ff00' }: { positions: { lat: number; lng: number; alt: number }[]; color?: string }) {
-  const { points, segments } = useMemo(() => {
-    if (positions.length < 2) return { points: [], segments: [] };
-    
-    const allPoints: THREE.Vector3[] = [];
-    const segmentIndices: number[] = [];
-    
-    for (let i = 0; i < positions.length; i++) {
-      const p = positions[i];
-      const radius = 2 + (p.alt / 6371) * 0.4;
-      const point = latLngToVector3(p.lat, p.lng, radius);
-      
-      // Check for longitude wrap-around (crossing date line)
-      if (i > 0) {
-        const prevLng = positions[i - 1].lng;
-        const currLng = p.lng;
-        const lngDiff = Math.abs(currLng - prevLng);
-        
-        // If longitude jump is > 180, we're crossing the date line - start new segment
-        if (lngDiff > 180) {
-          segmentIndices.push(allPoints.length);
-        }
-      }
-      
-      allPoints.push(point);
-    }
-    
-    return { points: allPoints, segments: segmentIndices };
-  }, [positions]);
-
-  if (points.length < 2) return null;
-
-  // Create separate line segments to handle date line crossing
-  const lineSegments = useMemo(() => {
-    if (segments.length === 0) {
-      return [points];
-    }
-    
-    const result: THREE.Vector3[][] = [];
-    let startIdx = 0;
-    
-    for (const segIdx of segments) {
-      if (segIdx > startIdx) {
-        result.push(points.slice(startIdx, segIdx));
-      }
-      startIdx = segIdx;
-    }
-    
-    if (startIdx < points.length) {
-      result.push(points.slice(startIdx));
-    }
-    
-    return result;
-  }, [points, segments]);
-
-  return (
-    <group>
-      {lineSegments.map((segmentPoints, idx) => {
-        if (segmentPoints.length < 2) return null;
-        const geometry = new THREE.BufferGeometry().setFromPoints(segmentPoints);
-        const material = new THREE.LineBasicMaterial({ 
-          color, 
-          opacity: 0.9, 
-          transparent: true,
-          linewidth: 2 
-        });
-        return <primitive key={idx} object={new THREE.Line(geometry, material)} />;
-      })}
-    </group>
-  );
-}
-
-// Tracked satellite orbit (colored by satellite) - handles date line crossing
-function TrackedOrbit({ positions, color }: { positions: { lat: number; lng: number; alt: number }[]; color: string }) {
-  const { points, segments } = useMemo(() => {
-    if (positions.length < 2) return { points: [], segments: [] };
-    
-    const allPoints: THREE.Vector3[] = [];
-    const segmentIndices: number[] = [];
-    
-    for (let i = 0; i < positions.length; i++) {
-      const p = positions[i];
-      const radius = 2 + (p.alt / 6371) * 0.4;
-      const point = latLngToVector3(p.lat, p.lng, radius);
-      
-      if (i > 0) {
-        const prevLng = positions[i - 1].lng;
-        const currLng = p.lng;
-        const lngDiff = Math.abs(currLng - prevLng);
-        
-        if (lngDiff > 180) {
-          segmentIndices.push(allPoints.length);
-        }
-      }
-      
-      allPoints.push(point);
-    }
-    
-    return { points: allPoints, segments: segmentIndices };
-  }, [positions]);
-
-  if (points.length < 2) return null;
-
-  const lineSegments = useMemo(() => {
-    if (segments.length === 0) {
-      return [points];
-    }
-    
-    const result: THREE.Vector3[][] = [];
-    let startIdx = 0;
-    
-    for (const segIdx of segments) {
-      if (segIdx > startIdx) {
-        result.push(points.slice(startIdx, segIdx));
-      }
-      startIdx = segIdx;
-    }
-    
-    if (startIdx < points.length) {
-      result.push(points.slice(startIdx));
-    }
-    
-    return result;
-  }, [points, segments]);
-
-  return (
-    <group>
-      {lineSegments.map((segmentPoints, idx) => {
-        if (segmentPoints.length < 2) return null;
-        const geometry = new THREE.BufferGeometry().setFromPoints(segmentPoints);
-        const material = new THREE.LineBasicMaterial({ 
-          color, 
-          opacity: 0.7, 
-          transparent: true 
-        });
-        return <primitive key={idx} object={new THREE.Line(geometry, material)} />;
-      })}
-    </group>
-  );
-}
-
-function ObserverMarker({ lat, lng }: { lat: number; lng: number }) {
-  const position = useMemo(() => latLngToVector3(lat, lng, 2.02), [lat, lng]);
-  const pulseRef = useRef<THREE.Mesh>(null);
-  const cameraDistance = useCameraDistance();
-  
-  // Calculate zoom-responsive scale
-  const zoomScale = Math.max(0.3, Math.min(1, cameraDistance / 5.5));
-  const tooltipScale = Math.max(4, Math.min(12, cameraDistance * 1.5));
-  const markerSize = 0.025 * zoomScale;
-  const ringInner = 0.035 * zoomScale;
-  const ringOuter = 0.05 * zoomScale;
-  
-  useFrame((state) => {
-    if (pulseRef.current) {
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.3;
-      pulseRef.current.scale.set(scale, scale, scale);
-    }
-  });
-
-  return (
-    <group position={position}>
-      <mesh>
-        <sphereGeometry args={[markerSize, 16, 16]} />
-        <meshBasicMaterial color="#ef4444" />
-      </mesh>
-      <mesh ref={pulseRef} rotation={[Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[ringInner, ringOuter, 32]} />
-        <meshBasicMaterial color="#ef4444" transparent opacity={0.6} side={THREE.DoubleSide} />
-      </mesh>
-      <Html distanceFactor={tooltipScale} style={{ pointerEvents: 'none' }}>
-        <div 
-          className="bg-red-500 text-white rounded font-medium shadow-lg whitespace-nowrap"
-          style={{
-            padding: `${Math.max(2, 4 * zoomScale)}px ${Math.max(4, 8 * zoomScale)}px`,
-            fontSize: `${Math.max(9, 12 * zoomScale)}px`,
-          }}
-        >
-          📍 You
-        </div>
-      </Html>
-    </group>
-  );
-}
-
-function Scene() {
-  const { 
-    satellitesAbove, 
-    trackedSatellites, 
-    observer, 
-    selectedSatellite, 
-    setSelectedSatellite, 
-    selectTrackedSatellite,
-    showObserver,
-    selectedOrbitPositions 
-  } = useSatelliteStore();
-
-  return (
-    <>
-      <ambientLight intensity={1.5} />
-      <directionalLight position={[5, 3, 5]} intensity={2} />
-      <directionalLight position={[-5, -3, -5]} intensity={1} />
-      <pointLight position={[0, 0, 0]} intensity={1} />
-      <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={1} />
-      
-      <Suspense fallback={null}>
-        <Earth />
-      </Suspense>
-      
-      <CameraDistanceProvider>
-        {showObserver && <ObserverMarker lat={observer.lat} lng={observer.lng} />}
-        
-        {/* Satellites from search results */}
-        {satellitesAbove.map((sat) => (
-          <Satellite
-            key={sat.satid}
-            lat={sat.satlat}
-            lng={sat.satlng}
-            alt={sat.satalt}
-            name={sat.satname}
-            color="#4ecdc4"
-            isSelected={selectedSatellite?.satid === sat.satid}
-            onClick={() => setSelectedSatellite(sat)}
-          />
-        ))}
-        
-        {/* Tracked satellites */}
-        {trackedSatellites.map((sat) => (
-          <group key={sat.id}>
-            {sat.positions.length > 0 && (
-              <Satellite
-                lat={sat.positions[0].satlatitude}
-                lng={sat.positions[0].satlongitude}
-                alt={sat.positions[0].sataltitude}
-                name={sat.name}
-                color={sat.color}
-                isSelected={selectedSatellite?.satid === sat.id}
-                onClick={() => selectTrackedSatellite(sat.id)}
-              />
-            )}
-          </group>
-        ))}
-      </CameraDistanceProvider>
-      
-      <OrbitControls 
-        enablePan={false} 
-        minDistance={3} 
-        maxDistance={12}
-        rotateSpeed={0.5}
-      />
-    </>
-  );
-}
+  return { path: '/satellite.glb', scale: 0.6 };
+};
 
 export default function Globe() {
+  const globeRef = useRef<any>();
+  const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+  
+  const {
+    satellitesAbove,
+    trackedSatellites,
+    observer,
+    selectedSatellite,
+    setSelectedSatellite,
+    selectTrackedSatellite,
+    showObserver,
+    selectedOrbitPositions,
+  } = useSatelliteStore();
 
+  // Prepare 3D objects data (satellites) - MUST be before any conditional returns
+  const satelliteObjects = useMemo(() => {
+    const objects = [
+      // Satellites from search results
+      ...satellitesAbove.map(sat => ({
+        lat: sat.satlat,
+        lng: sat.satlng,
+        alt: sat.satalt / 6371,
+        name: sat.satname,
+        id: sat.satid,
+        color: '#4ecdc4',
+        isSelected: selectedSatellite?.satid === sat.satid,
+        type: 'search',
+        modelInfo: getModelPath(sat.satname),
+      })),
+      // Tracked satellites
+      ...trackedSatellites
+        .filter(sat => sat.positions.length > 0)
+        .map(sat => ({
+          lat: sat.positions[0].satlatitude,
+          lng: sat.positions[0].satlongitude,
+          alt: sat.positions[0].sataltitude / 6371,
+          name: sat.name,
+          id: sat.id,
+          color: sat.color,
+          isSelected: selectedSatellite?.satid === sat.id,
+          type: 'tracked',
+          modelInfo: getModelPath(sat.name),
+        })),
+    ];
+    
+    return objects;
+  }, [satellitesAbove, trackedSatellites, selectedSatellite]);
+
+  // Observer marker as a simple object
+  const observerObjects = useMemo(() => {
+    if (!showObserver) return [];
+    
+    return [{
+      lat: observer.lat,
+      lng: observer.lng,
+      alt: 0.001,
+      name: '📍 You',
+      id: -1,
+      type: 'observer',
+    }];
+  }, [showObserver, observer]);
+
+  // Prepare arcs data for selected satellite orbit (green line)
+  const orbitArcs = useMemo(() => {
+    if (selectedOrbitPositions.length < 2) return [];
+    
+    return selectedOrbitPositions.slice(0, -1).map((pos, i) => {
+      const nextPos = selectedOrbitPositions[i + 1];
+      // Check for date line crossing
+      const lngDiff = Math.abs(nextPos.satlongitude - pos.satlongitude);
+      if (lngDiff > 180) return null; // Skip segments that cross date line
+      
+      return {
+        startLat: pos.satlatitude,
+        startLng: pos.satlongitude,
+        startAlt: pos.sataltitude / 6371,
+        endLat: nextPos.satlatitude,
+        endLng: nextPos.satlongitude,
+        endAlt: nextPos.sataltitude / 6371,
+        color: '#00ff00',
+        stroke: 1.5,
+      };
+    }).filter(Boolean);
+  }, [selectedOrbitPositions]);
+
+  // Prepare arcs for tracked satellites
+  const trackedArcs = useMemo(() => {
+    return trackedSatellites.flatMap(sat => {
+      if (sat.positions.length < 2) return [];
+      
+      return sat.positions.slice(0, -1).map((pos, i) => {
+        const nextPos = sat.positions[i + 1];
+        const lngDiff = Math.abs(nextPos.satlongitude - pos.satlongitude);
+        if (lngDiff > 180) return null;
+        
+        return {
+          startLat: pos.satlatitude,
+          startLng: pos.satlongitude,
+          startAlt: pos.sataltitude / 6371,
+          endLat: nextPos.satlatitude,
+          endLng: nextPos.satlongitude,
+          endAlt: nextPos.sataltitude / 6371,
+          color: sat.color,
+          stroke: 1,
+        };
+      }).filter(Boolean);
+    });
+  }, [trackedSatellites]);
+
+  const allArcs = [...orbitArcs, ...trackedArcs];
+
+  // Effects AFTER all hooks
   useEffect(() => {
     setMounted(true);
+    
+    // Preload models
+    Promise.all([
+      loadModel('/satellite.glb'),
+      loadModel('/ISS.glb'),
+      loadModel('/Hubble.glb'),
+    ]).then(() => {
+      setModelsLoaded(true);
+    }).catch(err => {
+      console.error('Error loading models:', err);
+      setModelsLoaded(true); // Continue anyway
+    });
   }, []);
 
+  // Handle container resize
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        setDimensions({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight,
+        });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [mounted]);
+
+  // Initialize globe view
+  useEffect(() => {
+    if (globeRef.current && mounted) {
+      globeRef.current.pointOfView({ lat: 0, lng: 0, altitude: 2.5 }, 0);
+    }
+  }, [mounted]);
+
+  // Early return AFTER all hooks
   if (!mounted) {
     return (
       <div className="w-full h-full bg-gradient-to-b from-slate-900 to-black flex items-center justify-center">
@@ -513,15 +241,151 @@ export default function Globe() {
   }
 
   return (
-    <div className="w-full h-full bg-gradient-to-b from-slate-900 to-black">
-      <Canvas camera={{ position: [0, 0, 5.5], fov: 45 }}>
-        <Scene />
-      </Canvas>
+    <div ref={containerRef} className="w-full h-full bg-gradient-to-b from-slate-900 to-black">
+      {dimensions.width > 0 && dimensions.height > 0 && (
+        <GlobeComponent
+          ref={globeRef}
+          
+          // Use container dimensions
+          width={dimensions.width}
+          height={dimensions.height}
+          
+          // Use OpenStreetMap tiles for real map
+          globeImageUrl={null}
+          showGlobe={true}
+          showAtmosphere={false}
+          
+          // OpenStreetMap tile engine
+          globeTileEngineUrl={(x: number, y: number, l: number) => 
+            `https://tile.openstreetmap.org/${l}/${x}/${y}.png`
+          }
+          
+          // Background
+          backgroundColor="#000011"
+          
+          // 3D Objects (Satellites with models)
+          objectsData={satelliteObjects}
+          objectLat="lat"
+          objectLng="lng"
+          objectAltitude="alt"
+          objectLabel={(d: any) => `
+            <div style="
+              background: ${d.isSelected ? 'rgba(0, 150, 0, 0.95)' : 'rgba(17, 24, 39, 0.95)'};
+              border: 2px solid ${d.isSelected ? '#00ff00' : '#06b6d4'};
+              color: white;
+              padding: 8px 12px;
+              border-radius: 8px;
+              font-size: 13px;
+              line-height: 1.5;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            ">
+              <div style="font-weight: 700; font-size: 14px; margin-bottom: 4px;">${d.name}</div>
+              <div style="font-size: 11px; color: #d1d5db;">
+                Altitude: ${Math.round(d.alt * 6371)} km
+              </div>
+              <div style="font-size: 10px; color: #9ca3af; margin-top: 2px;">
+                Click to ${d.isSelected ? 'view details' : 'select'}
+              </div>
+            </div>
+          `}
+          objectThreeObject={(d: any) => {
+            // Get camera distance for zoom-based scaling
+            const cameraDistance = globeRef.current?.camera()?.position?.length() || 2.5;
+            // Scale inversely with zoom (closer = smaller satellites)
+            const zoomScale = Math.max(0.3, Math.min(1.5, cameraDistance / 2.5));
+            
+            const model = modelCache[d.modelInfo.path];
+            if (!model) {
+              // Fallback: simple sphere if model not loaded yet
+              const geometry = new THREE.SphereGeometry(0.05 * zoomScale, 16, 16);
+              const material = new THREE.MeshStandardMaterial({
+                color: d.isSelected ? 0x00ff00 : 0x4ecdc4,
+                emissive: d.isSelected ? 0x00ff00 : 0x4ecdc4,
+                emissiveIntensity: 0.5,
+                metalness: 0.8,
+                roughness: 0.3,
+              });
+              return new THREE.Mesh(geometry, material);
+            }
+            
+            const clone = model.clone();
+            const finalScale = d.modelInfo.scale * zoomScale;
+            clone.scale.set(finalScale, finalScale, finalScale);
+            
+            // Add glow effect for selected satellites
+            if (d.isSelected) {
+              clone.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                  const mesh = child as THREE.Mesh;
+                  if (mesh.material) {
+                    const mat = mesh.material as THREE.MeshStandardMaterial;
+                    mat.emissive = new THREE.Color(0x00ff00);
+                    mat.emissiveIntensity = 0.5;
+                  }
+                }
+              });
+            }
+            
+            return clone;
+          }}
+          onObjectClick={(obj: any) => {
+            if (obj.type === 'search') {
+              const sat = satellitesAbove.find(s => s.satid === obj.id);
+              if (sat) setSelectedSatellite(sat);
+            } else if (obj.type === 'tracked') {
+              selectTrackedSatellite(obj.id);
+            }
+          }}
+          
+          // Observer marker (simple HTML marker)
+          htmlElementsData={observerObjects}
+          htmlLat="lat"
+          htmlLng="lng"
+          htmlAltitude="alt"
+          htmlElement={(d: any) => {
+            const el = document.createElement('div');
+            el.innerHTML = `
+              <div style="
+                background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+                color: white;
+                padding: 6px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+                border: 2px solid white;
+                white-space: nowrap;
+                cursor: default;
+              ">
+                📍 Your Location
+              </div>
+            `;
+            return el;
+          }}
+          
+          // Arcs (orbital paths)
+          arcsData={allArcs}
+          arcStartLat="startLat"
+          arcStartLng="startLng"
+          arcStartAlt="startAlt"
+          arcEndLat="endLat"
+          arcEndLng="endLng"
+          arcEndAlt="endAlt"
+          arcColor="color"
+          arcStroke={(d: any) => d.stroke || 1}
+          arcDashLength={1}
+          arcDashGap={0}
+          arcDashAnimateTime={0}
+          arcAltitudeAutoScale={0.3}
+          
+          // Controls
+          enablePointerInteraction={true}
+          
+          // Performance
+          waitForGlobeReady={true}
+          animateIn={true}
+        />
+      )}
     </div>
   );
 }
-
-// Preload models
-useGLTF.preload('/satellite.glb');
-useGLTF.preload('/ISS.glb');
-useGLTF.preload('/Hubble.glb');

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSatelliteStore } from '@/store/satellite-store';
 import { SATELLITE_CATEGORIES, POPULAR_SATELLITES } from '@/lib/n2yo';
+import { getAllRegions, getRegionsByType, Region } from '@/lib/regions';
 import { 
   Search, 
   MapPin, 
@@ -17,7 +18,8 @@ import {
   Radio,
   Trash2,
   Star,
-  LucideIcon
+  LucideIcon,
+  Globe2
 } from 'lucide-react';
 
 // Collapsible Section Component
@@ -73,7 +75,7 @@ function ApiKeySection() {
   };
 
   return (
-    <Section title="API Key" icon={Settings} defaultOpen={!apiKey}>
+    <Section title="API Key" icon={Settings} defaultOpen={false}>
       <div className="space-y-2">
         <input
           type="password"
@@ -178,7 +180,7 @@ function LocationSection() {
   };
 
   return (
-    <Section title="Your Location" icon={MapPin}>
+    <Section title="Your Location" icon={MapPin} defaultOpen={false}>
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-400">Show on globe</span>
@@ -336,7 +338,7 @@ function SearchByNameSection() {
   };
 
   return (
-    <Section title="Search Satellite" icon={Search}>
+    <Section title="Search Satellite" icon={Search} defaultOpen={false}>
       <div className="space-y-3">
         <div className="flex gap-2">
           <input
@@ -400,10 +402,10 @@ function SearchByNameSection() {
 
 // Browse by Category Section
 function BrowseCategorySection({ onSearch }: { onSearch: () => void }) {
-  const { categoryId, setCategoryId, searchRadius, setSearchRadius, isLoading, apiKey } = useSatelliteStore();
+  const { categoryId, setCategoryId, searchRadius, setSearchRadius, isLoading, apiKey, regionFilterEnabled } = useSatelliteStore();
 
   return (
-    <Section title="Browse Above You" icon={Radio}>
+    <Section title="Browse Above You" icon={Radio} defaultOpen={false}>
       <div className="space-y-3">
         <div>
           <label className="text-xs text-gray-500 mb-1 block">Category</label>
@@ -435,12 +437,150 @@ function BrowseCategorySection({ onSearch }: { onSearch: () => void }) {
         
         <button
           onClick={onSearch}
-          disabled={isLoading || !apiKey}
+          disabled={isLoading || !apiKey || regionFilterEnabled}
           className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
         >
           {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Satellite size={16} />}
           Find Satellites
         </button>
+        {regionFilterEnabled && (
+          <p className="text-xs text-amber-400 text-center">Region filter is active</p>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// Region Filter Section
+function RegionFilterSection({ onRegionSearch }: { onRegionSearch: (region: Region) => void }) {
+  const { 
+    selectedRegion, 
+    setSelectedRegion, 
+    regionFilterEnabled, 
+    setRegionFilterEnabled,
+    isLoading,
+    apiKey,
+    categoryId,
+    searchRadius,
+    setSatellitesAbove
+  } = useSatelliteStore();
+  
+  const [filterType, setFilterType] = useState<'continent' | 'country'>('continent');
+  const regions = getRegionsByType();
+
+  const handleRegionChange = (regionId: string) => {
+    const allRegions = getAllRegions();
+    const region = allRegions.find(r => r.id === regionId);
+    setSelectedRegion(region || null);
+  };
+
+  const handleSearch = () => {
+    if (selectedRegion) {
+      setRegionFilterEnabled(true);
+      onRegionSearch(selectedRegion);
+    }
+  };
+
+  const handleDisable = () => {
+    setRegionFilterEnabled(false);
+    setSelectedRegion(null);
+    setSatellitesAbove([]); // Clear all satellites
+  };
+
+  return (
+    <Section title="Region Filter" icon={Globe2} defaultOpen={false}>
+      <div className="space-y-3">
+        {/* Filter Type Toggle */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setFilterType('continent')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              filterType === 'continent'
+                ? 'bg-cyan-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Continents
+          </button>
+          <button
+            onClick={() => setFilterType('country')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              filterType === 'country'
+                ? 'bg-cyan-600 text-white'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            Countries
+          </button>
+        </div>
+
+        {/* Region Selection */}
+        <div>
+          <label className="text-xs text-gray-500 mb-1 block">
+            Select {filterType === 'continent' ? 'Continent' : 'Country'}
+          </label>
+          <select
+            value={selectedRegion?.id || ''}
+            onChange={(e) => handleRegionChange(e.target.value)}
+            disabled={regionFilterEnabled}
+            className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg text-sm border border-gray-700 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
+          >
+            <option value="">Choose a region...</option>
+            {(filterType === 'continent' ? regions.continents : regions.countries).map((region) => (
+              <option key={region.id} value={region.id}>
+                {region.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Info about selected region */}
+        {selectedRegion && !regionFilterEnabled && (
+          <div className="bg-gray-800 rounded-lg p-2 text-xs text-gray-400">
+            <p className="mb-1">
+              <span className="text-cyan-400">{selectedRegion.samplingPoints.length}</span> sampling points
+            </p>
+            <p className="text-gray-500">
+              Will search from: {selectedRegion.samplingPoints.slice(0, 3).map(p => p.city).join(', ')}
+              {selectedRegion.samplingPoints.length > 3 && ` +${selectedRegion.samplingPoints.length - 3} more`}
+            </p>
+          </div>
+        )}
+
+        {/* Active filter info */}
+        {regionFilterEnabled && selectedRegion && (
+          <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-2 text-xs">
+            <p className="text-green-400 font-medium mb-1">✓ Active Filter</p>
+            <p className="text-gray-300">{selectedRegion.name}</p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        {!regionFilterEnabled ? (
+          <button
+            onClick={handleSearch}
+            disabled={!selectedRegion || isLoading || !apiKey}
+            className="w-full py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-700 disabled:to-gray-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
+          >
+            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Globe2 size={16} />}
+            Search Region
+          </button>
+        ) : (
+          <button
+            onClick={handleDisable}
+            className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
+          >
+            <X size={16} />
+            Clear Region Filter
+          </button>
+        )}
+
+        <p className="text-xs text-gray-500 text-center">
+          {regionFilterEnabled 
+            ? 'Showing satellites across the selected region'
+            : 'Search satellites across an entire continent or country'
+          }
+        </p>
       </div>
     </Section>
   );
@@ -453,7 +593,7 @@ function TrackedSection() {
   if (trackedSatellites.length === 0) return null;
 
   return (
-    <Section title={`Tracked (${trackedSatellites.length})`} icon={Satellite}>
+    <Section title={`Tracked (${trackedSatellites.length})`} icon={Satellite} defaultOpen={false}>
       <div className="space-y-1">
         {trackedSatellites.map((sat) => (
           <div
@@ -501,7 +641,7 @@ function ResultsSection() {
   if (satellitesAbove.length === 0) return null;
 
   return (
-    <Section title={`Results (${satellitesAbove.length})`} icon={Eye}>
+    <Section title={`Results (${satellitesAbove.length})`} icon={Eye} defaultOpen={false}>
       <div className="space-y-1 max-h-48 overflow-y-auto">
         {satellitesAbove.map((sat) => (
           <div
@@ -536,7 +676,7 @@ function ResultsSection() {
   );
 }
 
-export default function Sidebar({ onSearch }: { onSearch: () => void }) {
+export default function Sidebar({ onSearch, onRegionSearch }: { onSearch: () => void; onRegionSearch: (region: Region) => void }) {
   return (
     <div className="h-full flex flex-col bg-gray-900 border-r border-gray-800">
       <div className="p-4 border-b border-gray-800">
@@ -550,6 +690,7 @@ export default function Sidebar({ onSearch }: { onSearch: () => void }) {
       <div className="flex-1 overflow-y-auto">
         <ApiKeySection />
         <LocationSection />
+        <RegionFilterSection onRegionSearch={onRegionSearch} />
         <SearchByNameSection />
         <BrowseCategorySection onSearch={onSearch} />
         <TrackedSection />
