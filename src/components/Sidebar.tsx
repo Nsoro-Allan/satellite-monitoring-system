@@ -682,9 +682,9 @@ export default function Sidebar({ onSearch, onRegionSearch }: { onSearch: () => 
       <div className="p-4 border-b border-gray-800">
         <h1 className="text-lg font-bold text-white flex items-center gap-2">
           <Satellite className="text-cyan-400" size={22} />
-          Satellite Tracker
+          Satellite Monitoring System.
         </h1>
-        <p className="text-xs text-gray-500 mt-1">Real-time satellite monitoring</p>
+        <p className="text-xs text-gray-500 mt-1">Real-time satellite monitoring.</p>
       </div>
       
       <div className="flex-1 overflow-y-auto">
