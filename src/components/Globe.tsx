@@ -367,10 +367,10 @@ export default function Globe() {
           arcsData={allArcs}
           arcStartLat="startLat"
           arcStartLng="startLng"
-          arcStartAlt="startAlt"
+          arcStartAltitude="startAlt"
           arcEndLat="endLat"
           arcEndLng="endLng"
-          arcEndAlt="endAlt"
+          arcEndAltitude="endAlt"
           arcColor="color"
           arcStroke={(d: any) => d.stroke || 1}
           arcDashLength={1}

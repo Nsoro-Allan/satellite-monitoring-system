@@ -50,7 +50,7 @@ interface SatelliteStore {
 
 const COLORS = ['#00ff00', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#fd79a8', '#a29bfe'];
 
-export const useSatelliteStore = create<SatelliteStore>(
+export const useSatelliteStore = create<SatelliteStore>()(
   persist(
     (set, get) => ({
       apiKey: '',
