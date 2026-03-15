@@ -160,7 +160,7 @@ export default function Globe() {
         color: '#00ff00',
         stroke: 1.5,
       };
-    }).filter(Boolean);
+    }).filter((arc): arc is NonNullable<typeof arc> => arc !== null);
   }, [selectedOrbitPositions]);
 
   // Prepare arcs for tracked satellites
@@ -183,7 +183,7 @@ export default function Globe() {
           color: sat.color,
           stroke: 1,
         };
-      }).filter(Boolean);
+      }).filter((arc): arc is NonNullable<typeof arc> => arc !== null);
     });
   }, [trackedSatellites]);
 
