@@ -75,7 +75,7 @@ const getModelPath = (name: string): { path: string; scale: number } => {
 };
 
 export default function Globe() {
-  const globeRef = useRef<any>();
+  const globeRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
