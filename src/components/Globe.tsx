@@ -90,7 +90,7 @@ export default function Globe() {
     selectTrackedSatellite,
     showObserver,
     selectedOrbitPositions,
-  } = useSatelliteStore();
+  } = useSatelliteStore((state) => state);
 
   // Prepare 3D objects data (satellites) - MUST be before any conditional returns
   const satelliteObjects = useMemo(() => {

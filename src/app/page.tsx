@@ -18,7 +18,7 @@ const Globe = dynamic(() => import('@/components/Globe'), {
 });
 
 function StatsBar() {
-  const { satellitesAbove, trackedSatellites, selectedRegion, regionFilterEnabled } = useSatelliteStore();
+  const { satellitesAbove, trackedSatellites, selectedRegion, regionFilterEnabled } = useSatelliteStore((state) => state);
   
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-900/80 backdrop-blur-sm rounded-full px-6 py-2 flex items-center gap-6 border border-gray-700/50">
@@ -60,7 +60,7 @@ export default function Home() {
     setIsLoading,
     trackedSatellites,
     updateTrackedPositions,
-  } = useSatelliteStore();
+  } = useSatelliteStore((state) => state);
 
   const searchSatellites = useCallback(async () => {
     if (!apiKey) {

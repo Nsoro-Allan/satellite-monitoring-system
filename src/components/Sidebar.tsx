@@ -60,7 +60,7 @@ function Section({
 
 // API Key Section
 function ApiKeySection() {
-  const { apiKey, setApiKey } = useSatelliteStore();
+  const { apiKey, setApiKey } = useSatelliteStore((state) => state);
   const [input, setInput] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -106,7 +106,7 @@ function ApiKeySection() {
 
 // Location Section
 function LocationSection() {
-  const { observer, setObserver, showObserver, setShowObserver } = useSatelliteStore();
+  const { observer, setObserver, showObserver, setShowObserver } = useSatelliteStore((state) => state);
   const [lat, setLat] = useState('');
   const [lng, setLng] = useState('');
   const [loading, setLoading] = useState(false);
@@ -238,7 +238,7 @@ function LocationSection() {
 
 // Search by Name Section
 function SearchByNameSection() {
-  const { apiKey, observer, addTrackedSatellite } = useSatelliteStore();
+  const { apiKey, observer, addTrackedSatellite } = useSatelliteStore((state) => state);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Array<{ satid: number; satname: string }>>([]);
   const [loading, setLoading] = useState(false);
@@ -402,7 +402,7 @@ function SearchByNameSection() {
 
 // Browse by Category Section
 function BrowseCategorySection({ onSearch }: { onSearch: () => void }) {
-  const { categoryId, setCategoryId, searchRadius, setSearchRadius, isLoading, apiKey, regionFilterEnabled } = useSatelliteStore();
+  const { categoryId, setCategoryId, searchRadius, setSearchRadius, isLoading, apiKey, regionFilterEnabled } = useSatelliteStore((state) => state);
 
   return (
     <Section title="Browse Above You" icon={Radio} defaultOpen={false}>
@@ -463,7 +463,7 @@ function RegionFilterSection({ onRegionSearch }: { onRegionSearch: (region: Regi
     categoryId,
     searchRadius,
     setSatellitesAbove
-  } = useSatelliteStore();
+  } = useSatelliteStore((state) => state);
   
   const [filterType, setFilterType] = useState<'continent' | 'country'>('continent');
   const regions = getRegionsByType();
@@ -588,7 +588,7 @@ function RegionFilterSection({ onRegionSearch }: { onRegionSearch: (region: Regi
 
 // Tracked Satellites Section
 function TrackedSection() {
-  const { trackedSatellites, removeTrackedSatellite } = useSatelliteStore();
+  const { trackedSatellites, removeTrackedSatellite } = useSatelliteStore((state) => state);
 
   if (trackedSatellites.length === 0) return null;
 
@@ -619,7 +619,7 @@ function TrackedSection() {
 
 // Results Section
 function ResultsSection() {
-  const { satellitesAbove, setSelectedSatellite, selectedSatellite, addTrackedSatellite, apiKey, observer } = useSatelliteStore();
+  const { satellitesAbove, setSelectedSatellite, selectedSatellite, addTrackedSatellite, apiKey, observer } = useSatelliteStore((state) => state);
 
   const trackSatellite = async (sat: typeof satellitesAbove[0]) => {
     try {

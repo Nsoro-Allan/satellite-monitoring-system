@@ -438,7 +438,7 @@ function Scene() {
     selectTrackedSatellite,
     showObserver,
     selectedOrbitPositions 
-  } = useSatelliteStore();
+  } = useSatelliteStore((state) => state);
 
   return (
     <>
