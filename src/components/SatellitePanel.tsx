@@ -93,7 +93,7 @@ export default function SatellitePanel() {
     observer, 
     addTrackedSatellite,
     setSelectedOrbitPositions 
-  } = useSatelliteStore((state) => state);
+  } = useSatelliteStore();
   
   const [activeTab, setActiveTab] = useState<'info' | 'visual' | 'radio' | 'tle'>('info');
   const [visualPasses, setVisualPasses] = useState<VisualPass[]>([]);
