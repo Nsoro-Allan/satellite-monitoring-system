@@ -33,16 +33,15 @@ const loadModel = (path: string): Promise<THREE.Group> => {
       (gltf) => {
         const model = gltf.scene;
         
-        // Enhance materials for better visibility
+        // Keep natural material appearance
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh;
             if (mesh.material) {
               const material = mesh.material as THREE.MeshStandardMaterial;
-              material.emissive = new THREE.Color(0x88ddff);
-              material.emissiveIntensity = 0.3;
-              material.metalness = 0.8;
-              material.roughness = 0.3;
+              // Remove emissive overlay to show natural colors
+              material.emissive = new THREE.Color(0x000000);
+              material.emissiveIntensity = 0;
               material.needsUpdate = true;
             }
           }
@@ -64,14 +63,14 @@ const getModelPath = (name: string): { path: string; scale: number } => {
   if (nameLower.includes('iss') || nameLower.includes('zarya') || 
       nameLower.includes('space station') || nameLower.includes('tiangong') ||
       nameLower.includes('tianhe')) {
-    return { path: '/ISS.glb', scale: 0.8 };
+    return { path: '/ISS.glb', scale: 0.15 };
   }
   
   if (nameLower.includes('hubble')) {
-    return { path: '/Hubble.glb', scale: 0.8 };
+    return { path: '/Hubble.glb', scale: 0.15 };
   }
   
-  return { path: '/satellite.glb', scale: 0.6 };
+  return { path: '/satellite.glb', scale: 0.4 };
 };
 
 export default function Globe() {
@@ -291,8 +290,9 @@ export default function Globe() {
           objectThreeObject={(d: any) => {
             // Get camera distance for zoom-based scaling
             const cameraDistance = globeRef.current?.camera()?.position?.length() || 2.5;
-            // Scale inversely with zoom (closer = smaller satellites)
-            const zoomScale = Math.max(0.3, Math.min(1.5, cameraDistance / 2.5));
+            // Scale inversely with zoom - satellites get smaller as you zoom in
+            // Simple linear scaling: far = bigger, close = smaller
+            const zoomScale = Math.max(0.2, Math.min(1.0, (cameraDistance - 1.0) / 1.5));
             
             const model = modelCache[d.modelInfo.path];
             if (!model) {
