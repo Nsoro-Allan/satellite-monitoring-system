@@ -67,7 +67,7 @@ const getModelPath = (name: string): { path: string; scale: number } => {
   }
   
   if (nameLower.includes('hubble')) {
-    return { path: '/Hubble.glb', scale: 0.15 };
+    return { path: '/Hubble.glb', scale: 0.8 };
   }
   
   return { path: '/satellite.glb', scale: 0.4 };
