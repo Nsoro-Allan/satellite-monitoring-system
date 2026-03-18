@@ -63,7 +63,7 @@ const getModelPath = (name: string): { path: string; scale: number } => {
   if (nameLower.includes('iss') || nameLower.includes('zarya') || 
       nameLower.includes('space station') || nameLower.includes('tiangong') ||
       nameLower.includes('tianhe')) {
-    return { path: '/ISS.glb', scale: 0.15 };
+    return { path: '/ISS.glb', scale: 0.8 };
   }
   
   if (nameLower.includes('hubble')) {
