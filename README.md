@@ -62,19 +62,6 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
    - Filter by region (continent or country)
 4. Click any satellite to view details and track its orbit
 
----
-
-## 📜 Available Scripts
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server on http://localhost:3000 |
-| `npm run build` | Build optimized production bundle |
-| `npm start` | Run production server |
-| `npm run lint` | Run ESLint for code quality checks |
-
----
-
 ## 🎮 Usage Guide
 
 **Searching for Satellites:**
