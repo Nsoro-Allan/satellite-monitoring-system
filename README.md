@@ -228,11 +228,6 @@ The region filter allows you to find satellites over entire continents or countr
 
 ---
 
-## 📝 License
-
-MIT License - feel free to use this project for learning or personal use.
-
----
 
 <p align="center">
   Made with ❤️ by <b>Nsoro Allan</b>
