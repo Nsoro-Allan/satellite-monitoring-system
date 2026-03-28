@@ -229,5 +229,5 @@ The region filter allows you to find satellites over entire continents or countr
 ---
 
 <p align="center">
-  Made with ❤️ by <b>Nsoro Allan</b>
+  Made with ❤️ by <b>Nsoro Allan.</b>
 </p>
