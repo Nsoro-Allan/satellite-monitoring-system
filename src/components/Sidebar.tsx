@@ -19,7 +19,8 @@ import {
   Trash2,
   Star,
   LucideIcon,
-  Globe2
+  Globe2,
+  Map
 } from 'lucide-react';
 
 // Collapsible Section Component
@@ -99,6 +100,46 @@ function ApiKeySection() {
             Get free key at <a href="https://www.n2yo.com/api/" target="_blank" className="text-cyan-400 hover:underline">n2yo.com/api</a>
           </p>
         )}
+      </div>
+    </Section>
+  );
+}
+
+// Map View Section
+function MapViewSection() {
+  const { mapView, setMapView } = useSatelliteStore();
+
+  return (
+    <Section title="Map View" icon={Map} defaultOpen={true}>
+      <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setMapView('street')}
+            className={`py-2.5 rounded-lg text-sm font-medium transition-all ${
+              mapView === 'street'
+                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            🗺️ Street
+          </button>
+          <button
+            onClick={() => setMapView('satellite')}
+            className={`py-2.5 rounded-lg text-sm font-medium transition-all ${
+              mapView === 'satellite'
+                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            🛰️ Satellite
+          </button>
+        </div>
+        <p className="text-xs text-gray-500 text-center">
+          {mapView === 'street' 
+            ? 'Showing street map with labels' 
+            : 'Showing satellite imagery with labels'
+          }
+        </p>
       </div>
     </Section>
   );
@@ -688,6 +729,7 @@ export default function Sidebar({ onSearch, onRegionSearch }: { onSearch: () => 
       </div>
       
       <div className="flex-1 overflow-y-auto">
+        <MapViewSection />
         <ApiKeySection />
         <LocationSection />
         <RegionFilterSection onRegionSearch={onRegionSearch} />

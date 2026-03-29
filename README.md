@@ -15,6 +15,7 @@ Real-time satellite tracking application with interactive 3D globe visualization
 | Feature | Description |
 |---------|-------------|
 | 🌍 **3D Globe** | Interactive Earth with OpenStreetMap tiles using react-globe.gl |
+| 🗺️ **Map Views** | Toggle between street map and satellite imagery (both with labels) |
 | 📡 **Real-time Tracking** | Track multiple satellites with live position updates every 5 seconds |
 | 🛰️ **3D Models** | Custom 3D models for ISS, Hubble, and generic satellites with zoom-adaptive scaling |
 | 🔍 **Multi-Search** | Search by name, browse by category, or filter by region |
@@ -86,6 +87,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 - Scroll to zoom in/out
 - Click satellites to select them
 - Toggle "Show on globe" to display your location marker
+- Switch between Street and Satellite map views for different perspectives
 
 ---
 
@@ -117,7 +119,7 @@ This project uses the following [N2YO API](https://www.n2yo.com/api/) endpoints 
 - **State Management:** [Zustand](https://zustand-demo.pmnd.rs/) with persistence
 - **Icons:** [Lucide React](https://lucide.dev/)
 - **Language:** TypeScript
-- **Map Tiles:** OpenStreetMap
+- **Map Tiles:** OpenStreetMap (street view) + Google Hybrid (satellite view with labels)
 
 ---
 
@@ -158,12 +160,14 @@ satellite-monitoring-system/
 ## 🎨 Key Components
 
 **Globe.tsx**
-- Renders 3D Earth using react-globe.gl with OpenStreetMap tiles
+- Renders 3D Earth using react-globe.gl with dual map views (street/satellite)
+- Optimized tile loading with reduced resolution for faster performance
 - Displays satellites as 3D models (ISS, Hubble, generic) with zoom-adaptive scaling
 - Shows orbit paths as colored arcs (green for selected, custom colors for tracked)
 - Handles satellite selection and click interactions
 
 **Sidebar.tsx**
+- Map view toggle for switching between street and satellite imagery
 - Collapsible sections for API key, location, search, and filters
 - Three search modes: by name, by category, by region
 - Quick track buttons for popular satellites (ISS, Hubble, etc.)
@@ -178,6 +182,7 @@ satellite-monitoring-system/
 **satellite-store.ts**
 - Zustand store with localStorage persistence
 - Manages API key, observer location, search results, and tracked satellites
+- Stores map view preference (street/satellite)
 - Updates tracked satellite positions every 5 seconds
 - Handles region filtering state
 

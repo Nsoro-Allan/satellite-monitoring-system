@@ -89,6 +89,7 @@ export default function Globe() {
     selectTrackedSatellite,
     showObserver,
     selectedOrbitPositions,
+    mapView,
   } = useSatelliteStore();
 
   // Prepare 3D objects data (satellites) - MUST be before any conditional returns
@@ -242,25 +243,38 @@ export default function Globe() {
   return (
     <div ref={containerRef} className="w-full h-full bg-gradient-to-b from-slate-900 to-black">
       {dimensions.width > 0 && dimensions.height > 0 && (
-        <GlobeComponent
-          ref={globeRef}
-          
-          // Use container dimensions
-          width={dimensions.width}
-          height={dimensions.height}
-          
-          // Use OpenStreetMap tiles for real map
-          globeImageUrl={null}
-          showGlobe={true}
-          showAtmosphere={false}
-          
-          // OpenStreetMap tile engine
-          globeTileEngineUrl={(x: number, y: number, l: number) => 
-            `https://tile.openstreetmap.org/${l}/${x}/${y}.png`
-          }
-          
-          // Background
-          backgroundColor="#000011"
+        <>
+          <GlobeComponent
+            ref={globeRef}
+            
+            // Use container dimensions
+            width={dimensions.width}
+            height={dimensions.height}
+            
+            // Map tiles configuration with optimizations
+            globeImageUrl={null}
+            showGlobe={true}
+            showAtmosphere={false}
+            
+            // Tile engine with view switching
+            globeTileEngineUrl={(x: number, y: number, l: number) => {
+              if (mapView === 'satellite') {
+                // Google Hybrid tiles (satellite + labels) - free tier
+                const s = ['mt0', 'mt1', 'mt2', 'mt3'][(x + y) % 4];
+                return `https://${s}.google.com/vt/lyrs=y&x=${x}&y=${y}&z=${l}`;
+              }
+              // OpenStreetMap for street view (includes labels by default)
+              return `https://tile.openstreetmap.org/${l}/${x}/${y}.png`;
+            }}
+            
+            // Tile resolution for better quality and faster loading
+            tilesResolution={3}
+            
+            // Max zoom level for performance
+            maxZoom={7}
+            
+            // Background
+            backgroundColor="#000011"
           
           // 3D Objects (Satellites with models)
           objectsData={satelliteObjects}
@@ -385,6 +399,7 @@ export default function Globe() {
           waitForGlobeReady={true}
           animateIn={true}
         />
+        </>
       )}
     </div>
   );

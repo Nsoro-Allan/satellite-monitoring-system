@@ -46,6 +46,8 @@ interface SatelliteStore {
   setSelectedRegion: (region: Region | null) => void;
   regionFilterEnabled: boolean;
   setRegionFilterEnabled: (enabled: boolean) => void;
+  mapView: 'street' | 'satellite';
+  setMapView: (view: 'street' | 'satellite') => void;
 }
 
 const COLORS = ['#00ff00', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#fd79a8', '#a29bfe'];
@@ -139,6 +141,8 @@ export const useSatelliteStore = create<SatelliteStore>()(
       setSelectedRegion: (region) => set({ selectedRegion: region }),
       regionFilterEnabled: false,
       setRegionFilterEnabled: (enabled) => set({ regionFilterEnabled: enabled }),
+      mapView: 'street',
+      setMapView: (view) => set({ mapView: view }),
     }),
     {
       name: 'satellite-store',
@@ -151,6 +155,7 @@ export const useSatelliteStore = create<SatelliteStore>()(
         trackedSatellites: state.trackedSatellites,
         selectedRegion: state.selectedRegion,
         regionFilterEnabled: state.regionFilterEnabled,
+        mapView: state.mapView,
       }),
     }
   )
