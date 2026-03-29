@@ -267,12 +267,6 @@ export default function Globe() {
               return `https://tile.openstreetmap.org/${l}/${x}/${y}.png`;
             }}
             
-            // Tile resolution for better quality and faster loading
-            tilesResolution={3}
-            
-            // Max zoom level for performance
-            maxZoom={7}
-            
             // Background
             backgroundColor="#000011"
           
