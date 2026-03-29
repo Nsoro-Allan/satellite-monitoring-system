@@ -141,7 +141,7 @@ export const useSatelliteStore = create<SatelliteStore>()(
       setSelectedRegion: (region) => set({ selectedRegion: region }),
       regionFilterEnabled: false,
       setRegionFilterEnabled: (enabled) => set({ regionFilterEnabled: enabled }),
-      mapView: 'street',
+      mapView: 'satellite',
       setMapView: (view) => set({ mapView: view }),
     }),
     {

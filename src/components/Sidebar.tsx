@@ -110,7 +110,7 @@ function MapViewSection() {
   const { mapView, setMapView } = useSatelliteStore();
 
   return (
-    <Section title="Map View" icon={Map} defaultOpen={true}>
+    <Section title="Map View" icon={Map} defaultOpen={false}>
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <button
