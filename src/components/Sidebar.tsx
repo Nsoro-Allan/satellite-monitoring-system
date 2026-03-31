@@ -566,7 +566,7 @@ function RegionFilterSection({ onRegionSearch }: { onRegionSearch: (region: Regi
             disabled={regionFilterEnabled}
             className="w-full bg-gray-800 text-white px-3 py-2 rounded-lg text-sm border border-gray-700 focus:border-cyan-500 focus:outline-none disabled:opacity-50"
           >
-            <option value="">Choose a region...</option>
+            <option value="">{filterType === 'continent' ? 'Choose a continent...' : 'Choose a country...'}</option>
             {(filterType === 'continent' ? regions.continents : regions.countries).map((region) => (
               <option key={region.id} value={region.id}>
                 {region.name}
