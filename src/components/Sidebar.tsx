@@ -295,13 +295,20 @@ function ApiKeySection() {
             <button
               onClick={handleSave}
               disabled={!input.trim()}
-              className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`w-full py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
                 saved 
                   ? 'bg-green-600 text-white' 
                   : 'bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-700 disabled:text-gray-500 text-white'
               }`}
             >
-              {saved ? '✓ Saved Successfully' : 'Save API Key'}
+              {saved ? (
+                <>
+                  <CheckCircle2 size={14} />
+                  Saved Successfully
+                </>
+              ) : (
+                'Save API Key'
+              )}
             </button>
             
             {apiKey ? (
@@ -828,7 +835,10 @@ function ScanConfigurationSection({ onRegionSearch }: { onRegionSearch: (region:
 
             {regionFilterEnabled && selectedRegion && (
               <div className="bg-green-900/30 border border-green-700/50 rounded-lg p-2 text-xs">
-                <p className="text-green-400 font-medium mb-1">✓ Active Filter</p>
+                <p className="text-green-400 font-medium mb-1 flex items-center gap-1">
+                  <CheckCircle2 size={12} />
+                  Active Filter
+                </p>
                 <p className="text-gray-300">{selectedRegion.name}</p>
               </div>
             )}
