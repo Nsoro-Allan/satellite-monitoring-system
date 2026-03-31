@@ -259,9 +259,9 @@ export default function Globe() {
             // Tile engine with view switching
             globeTileEngineUrl={(x: number, y: number, l: number) => {
               if (mapView === 'satellite') {
-                // Google Hybrid tiles (satellite + labels) - free tier
+                // Google Hybrid tiles (satellite + labels) - free tier with English labels
                 const s = ['mt0', 'mt1', 'mt2', 'mt3'][(x + y) % 4];
-                return `https://${s}.google.com/vt/lyrs=y&x=${x}&y=${y}&z=${l}`;
+                return `https://${s}.google.com/vt/lyrs=y&hl=en&x=${x}&y=${y}&z=${l}`;
               }
               // OpenStreetMap for street view (includes labels by default)
               return `https://tile.openstreetmap.org/${l}/${x}/${y}.png`;
