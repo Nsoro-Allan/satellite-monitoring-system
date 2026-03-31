@@ -188,7 +188,7 @@ export default function SatellitePanel() {
           <h3 className="font-bold text-white">{selectedSatellite.satname}</h3>
           <p className="text-xs text-gray-400 flex items-center gap-1">
             <Globe size={10} className="text-green-400" />
-            NORAD #{selectedSatellite.satid} • Orbit shown in green
+            NORAD #{selectedSatellite.satid}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -410,23 +410,25 @@ function ViewConfigurationSection() {
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setMapView('street')}
-              className={`py-2 rounded-lg text-xs font-medium transition-all ${
+              className={`py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                 mapView === 'street'
                   ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
               }`}
             >
-              🗺️ Street
+              <Map size={14} />
+              Street
             </button>
             <button
               onClick={() => setMapView('satellite')}
-              className={`py-2 rounded-lg text-xs font-medium transition-all ${
+              className={`py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                 mapView === 'satellite'
                   ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
               }`}
             >
-              🛰️ Satellite
+              <Satellite size={14} />
+              Satellite
             </button>
           </div>
         </div>
@@ -709,23 +711,25 @@ function ScanConfigurationSection({ onRegionSearch }: { onRegionSearch: (region:
             <button
               onClick={() => setScanMode('area')}
               disabled={regionFilterEnabled}
-              className={`py-2 rounded-lg text-xs font-medium transition-all ${
+              className={`py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                 scanMode === 'area'
                   ? 'bg-cyan-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700 disabled:opacity-50'
               }`}
             >
-              📍 Area Scan
+              <MapPin size={14} />
+              Area Scan
             </button>
             <button
               onClick={() => setScanMode('region')}
-              className={`py-2 rounded-lg text-xs font-medium transition-all ${
+              className={`py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 ${
                 scanMode === 'region'
                   ? 'bg-cyan-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              🌍 Region Scan
+              <Globe2 size={14} />
+              Region Scan
             </button>
           </div>
         </div>
@@ -999,23 +1003,25 @@ function PassPredictionsSection() {
         <div className="flex gap-2">
           <button
             onClick={() => setPassType('visual')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
               passType === 'visual'
                 ? 'bg-cyan-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
-            👁️ Visual
+            <Eye size={14} />
+            Visual
           </button>
           <button
             onClick={() => setPassType('radio')}
-            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${
               passType === 'radio'
                 ? 'bg-cyan-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
-            📡 Radio
+            <Radio size={14} />
+            Radio
           </button>
         </div>
 
