@@ -106,15 +106,8 @@ export default function SatellitePanel() {
     setLoading(true);
 
     try {
-      // Fetch orbit positions for the green line (300 seconds = 5 minutes of orbit)
-      const orbitRes = await fetch(
-        `/api/satellite/positions?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=${observer.alt}&seconds=300&apiKey=${apiKey}`
-      );
-      const orbitData = await orbitRes.json();
-      if (orbitData.positions) {
-        setSelectedOrbitPositions(orbitData.positions);
-      }
-
+      // Only fetch TLE, visual passes, and radio passes
+      // Don't fetch orbit positions automatically - only when tracking
       const [tleRes, visualRes, radioRes] = await Promise.all([
         fetch(`/api/satellite/tle?satId=${selectedSatellite.satid}&apiKey=${apiKey}`),
         fetch(`/api/satellite/visualpasses?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=${observer.alt}&days=5&minVisibility=60&apiKey=${apiKey}`),
@@ -135,7 +128,7 @@ export default function SatellitePanel() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSatellite, apiKey, observer, setSelectedOrbitPositions]);
+  }, [selectedSatellite, apiKey, observer]);
 
   useEffect(() => {
     if (selectedSatellite) {
@@ -149,6 +142,16 @@ export default function SatellitePanel() {
   const trackSatellite = async () => {
     if (!selectedSatellite) return;
     try {
+      // Fetch orbit positions for the green line (300 seconds = 5 minutes of orbit)
+      const orbitRes = await fetch(
+        `/api/satellite/positions?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=${observer.alt}&seconds=300&apiKey=${apiKey}`
+      );
+      const orbitData = await orbitRes.json();
+      if (orbitData.positions) {
+        setSelectedOrbitPositions(orbitData.positions);
+      }
+      
+      // Add to tracked satellites for real-time updates
       const res = await fetch(
         `/api/satellite/positions?satId=${selectedSatellite.satid}&lat=${observer.lat}&lng=${observer.lng}&alt=0&seconds=300&apiKey=${apiKey}`
       );

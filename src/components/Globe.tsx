@@ -39,9 +39,12 @@ const loadModel = (path: string): Promise<THREE.Group> => {
             const mesh = child as THREE.Mesh;
             if (mesh.material) {
               const material = mesh.material as THREE.MeshStandardMaterial;
-              // Remove emissive overlay to show natural colors
+              // Remove any color tinting and show natural material colors
               material.emissive = new THREE.Color(0x000000);
               material.emissiveIntensity = 0;
+              material.color = new THREE.Color(0xffffff); // Reset to white/natural
+              material.metalness = 0.7;
+              material.roughness = 0.3;
               material.needsUpdate = true;
             }
           }
@@ -95,19 +98,21 @@ export default function Globe() {
   // Prepare 3D objects data (satellites) - MUST be before any conditional returns
   const satelliteObjects = useMemo(() => {
     const objects = [
-      // Satellites from search results
-      ...satellitesAbove.map(sat => ({
-        lat: sat.satlat,
-        lng: sat.satlng,
-        alt: sat.satalt / 6371,
-        name: sat.satname,
-        id: sat.satid,
-        color: '#4ecdc4',
-        isSelected: selectedSatellite?.satid === sat.satid,
-        type: 'search',
-        modelInfo: getModelPath(sat.satname),
-      })),
-      // Tracked satellites
+      // Satellites from search results (not tracked)
+      ...satellitesAbove
+        .filter(sat => !trackedSatellites.some(t => t.id === sat.satid))
+        .map(sat => ({
+          lat: sat.satlat,
+          lng: sat.satlng,
+          alt: sat.satalt / 6371,
+          name: sat.satname,
+          id: sat.satid,
+          color: '#4ecdc4',
+          isSelected: selectedSatellite?.satid === sat.satid,
+          type: 'search',
+          modelInfo: getModelPath(sat.satname),
+        })),
+      // Tracked satellites (real-time positions)
       ...trackedSatellites
         .filter(sat => sat.positions.length > 0)
         .map(sat => ({
@@ -150,13 +155,16 @@ export default function Globe() {
       const lngDiff = Math.abs(nextPos.satlongitude - pos.satlongitude);
       if (lngDiff > 180) return null; // Skip segments that cross date line
       
+      // Normalize altitude for visual display
+      const normalizeAlt = (altKm: number) => Math.min(0.02, altKm / 40000);
+      
       return {
         startLat: pos.satlatitude,
         startLng: pos.satlongitude,
-        startAlt: pos.sataltitude / 6371,
+        startAlt: normalizeAlt(pos.sataltitude),
         endLat: nextPos.satlatitude,
         endLng: nextPos.satlongitude,
-        endAlt: nextPos.sataltitude / 6371,
+        endAlt: normalizeAlt(nextPos.sataltitude),
         color: '#00ff00',
         stroke: 1.5,
       };
@@ -165,6 +173,9 @@ export default function Globe() {
 
   // Prepare arcs for tracked satellites
   const trackedArcs = useMemo(() => {
+    // Normalize altitude for visual display
+    const normalizeAlt = (altKm: number) => Math.min(0.02, altKm / 40000);
+    
     return trackedSatellites.flatMap(sat => {
       if (sat.positions.length < 2) return [];
       
@@ -176,10 +187,10 @@ export default function Globe() {
         return {
           startLat: pos.satlatitude,
           startLng: pos.satlongitude,
-          startAlt: pos.sataltitude / 6371,
+          startAlt: normalizeAlt(pos.sataltitude),
           endLat: nextPos.satlatitude,
           endLng: nextPos.satlongitude,
-          endAlt: nextPos.sataltitude / 6371,
+          endAlt: normalizeAlt(nextPos.sataltitude),
           color: sat.color,
           stroke: 1,
         };
@@ -270,11 +281,32 @@ export default function Globe() {
             // Background
             backgroundColor="#000011"
           
-          // 3D Objects (Satellites with models)
+          // Arcs (orbital paths) - render BEFORE objects so satellites appear on top
+          arcsData={allArcs}
+          arcStartLat="startLat"
+          arcStartLng="startLng"
+          arcStartAltitude="startAlt"
+          arcEndLat="endLat"
+          arcEndLng="endLng"
+          arcEndAltitude="endAlt"
+          arcColor="color"
+          arcStroke={(d: any) => d.stroke || 1}
+          arcDashLength={1}
+          arcDashGap={0}
+          arcDashAnimateTime={0}
+          arcAltitudeAutoScale={0.3}
+          
+          // 3D Objects (Satellites with models) - render AFTER arcs so they appear on top
           objectsData={satelliteObjects}
           objectLat="lat"
           objectLng="lng"
-          objectAltitude="alt"
+          objectAltitude={(d: any) => {
+            // Normalize altitude for visual display
+            // Real altitude in km, but scale it down for better visualization
+            const realAltKm = d.alt * 6371;
+            // Scale: 400km = 0.01, 600km = 0.015 (normalized for visual appeal)
+            return Math.min(0.02, realAltKm / 40000);
+          }}
           objectLabel={(d: any) => `
             <div style="
               background: ${d.isSelected ? 'rgba(0, 150, 0, 0.95)' : 'rgba(17, 24, 39, 0.95)'};
@@ -320,19 +352,37 @@ export default function Globe() {
             const finalScale = d.modelInfo.scale * zoomScale;
             clone.scale.set(finalScale, finalScale, finalScale);
             
-            // Add glow effect for selected satellites
-            if (d.isSelected) {
-              clone.traverse((child) => {
-                if ((child as THREE.Mesh).isMesh) {
-                  const mesh = child as THREE.Mesh;
-                  if (mesh.material) {
-                    const mat = mesh.material as THREE.MeshStandardMaterial;
+            // Enhance lighting and visibility
+            clone.traverse((child) => {
+              if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                if (mesh.material) {
+                  const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+                  
+                  // Reset to natural colors
+                  mat.color = new THREE.Color(0xffffff);
+                  mat.metalness = 0.6;
+                  mat.roughness = 0.4;
+                  
+                  // Add bright lighting for better visibility
+                  if (d.isSelected) {
                     mat.emissive = new THREE.Color(0x00ff00);
-                    mat.emissiveIntensity = 0.5;
+                    mat.emissiveIntensity = 0.6;
+                  } else {
+                    // Add subtle white glow for visibility without color tint
+                    mat.emissive = new THREE.Color(0xffffff);
+                    mat.emissiveIntensity = 0.3;
                   }
+                  
+                  mesh.material = mat;
                 }
-              });
-            }
+              }
+            });
+            
+            // Add point light to illuminate the model
+            const light = new THREE.PointLight(0xffffff, 2, 10);
+            light.position.set(0, 0, 0);
+            clone.add(light);
             
             return clone;
           }}
@@ -370,21 +420,6 @@ export default function Globe() {
             `;
             return el;
           }}
-          
-          // Arcs (orbital paths)
-          arcsData={allArcs}
-          arcStartLat="startLat"
-          arcStartLng="startLng"
-          arcStartAltitude="startAlt"
-          arcEndLat="endLat"
-          arcEndLng="endLng"
-          arcEndAltitude="endAlt"
-          arcColor="color"
-          arcStroke={(d: any) => d.stroke || 1}
-          arcDashLength={1}
-          arcDashGap={0}
-          arcDashAnimateTime={0}
-          arcAltitudeAutoScale={0.3}
           
           // Controls
           enablePointerInteraction={true}
