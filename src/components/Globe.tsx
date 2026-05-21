@@ -82,6 +82,7 @@ export default function Globe() {
   const [mounted, setMounted] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const [starsAdded, setStarsAdded] = useState(false);
   
   const {
     satellitesAbove,
@@ -145,20 +146,27 @@ export default function Globe() {
     }];
   }, [showObserver, observer]);
 
-  // Prepare arcs data for selected satellite orbit (green line)
+  // Prepare arcs data for selected satellite orbit (green line) - optimized
   const orbitArcs = useMemo(() => {
     if (selectedOrbitPositions.length < 2) return [];
     
-    return selectedOrbitPositions.slice(0, -1).map((pos, i) => {
-      const nextPos = selectedOrbitPositions[i + 1];
+    // Limit number of arc segments for performance
+    const maxSegments = 100;
+    const step = Math.max(1, Math.floor(selectedOrbitPositions.length / maxSegments));
+    
+    const arcs = [];
+    for (let i = 0; i < selectedOrbitPositions.length - 1; i += step) {
+      const pos = selectedOrbitPositions[i];
+      const nextPos = selectedOrbitPositions[Math.min(i + step, selectedOrbitPositions.length - 1)];
+      
       // Check for date line crossing
       const lngDiff = Math.abs(nextPos.satlongitude - pos.satlongitude);
-      if (lngDiff > 180) return null; // Skip segments that cross date line
+      if (lngDiff > 180) continue;
       
       // Normalize altitude for visual display
       const normalizeAlt = (altKm: number) => Math.min(0.02, altKm / 40000);
       
-      return {
+      arcs.push({
         startLat: pos.satlatitude,
         startLng: pos.satlongitude,
         startAlt: normalizeAlt(pos.sataltitude),
@@ -167,11 +175,13 @@ export default function Globe() {
         endAlt: normalizeAlt(nextPos.sataltitude),
         color: '#00ff00',
         stroke: 1.5,
-      };
-    }).filter((arc): arc is NonNullable<typeof arc> => arc !== null);
+      });
+    }
+    
+    return arcs;
   }, [selectedOrbitPositions]);
 
-  // Prepare arcs for tracked satellites
+  // Prepare arcs for tracked satellites - optimized
   const trackedArcs = useMemo(() => {
     // Normalize altitude for visual display
     const normalizeAlt = (altKm: number) => Math.min(0.02, altKm / 40000);
@@ -179,12 +189,19 @@ export default function Globe() {
     return trackedSatellites.flatMap(sat => {
       if (sat.positions.length < 2) return [];
       
-      return sat.positions.slice(0, -1).map((pos, i) => {
-        const nextPos = sat.positions[i + 1];
-        const lngDiff = Math.abs(nextPos.satlongitude - pos.satlongitude);
-        if (lngDiff > 180) return null;
+      // Limit arc segments per satellite for performance
+      const maxSegments = 50;
+      const step = Math.max(1, Math.floor(sat.positions.length / maxSegments));
+      
+      const arcs = [];
+      for (let i = 0; i < sat.positions.length - 1; i += step) {
+        const pos = sat.positions[i];
+        const nextPos = sat.positions[Math.min(i + step, sat.positions.length - 1)];
         
-        return {
+        const lngDiff = Math.abs(nextPos.satlongitude - pos.satlongitude);
+        if (lngDiff > 180) continue;
+        
+        arcs.push({
           startLat: pos.satlatitude,
           startLng: pos.satlongitude,
           startAlt: normalizeAlt(pos.sataltitude),
@@ -193,8 +210,10 @@ export default function Globe() {
           endAlt: normalizeAlt(nextPos.sataltitude),
           color: sat.color,
           stroke: 1,
-        };
-      }).filter((arc): arc is NonNullable<typeof arc> => arc !== null);
+        });
+      }
+      
+      return arcs;
     });
   }, [trackedSatellites]);
 
@@ -239,20 +258,138 @@ export default function Globe() {
   useEffect(() => {
     if (globeRef.current && mounted) {
       globeRef.current.pointOfView({ lat: 0, lng: 0, altitude: 2.5 }, 0);
+      
+      // Set renderer optimizations
+      const renderer = globeRef.current.renderer();
+      if (renderer) {
+        renderer.powerPreference = 'high-performance';
+        renderer.antialias = false; // Disable for better performance
+      }
     }
   }, [mounted]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (globeRef.current) {
+        const scene = globeRef.current.scene();
+        if (scene) {
+          // Clean up stars
+          const stars = scene.children.find((child: any) => child.name === 'starfield');
+          if (stars && stars instanceof THREE.Points) {
+            stars.geometry.dispose();
+            (stars.material as THREE.Material).dispose();
+            scene.remove(stars);
+          }
+        }
+      }
+    };
+  }, []);
+
+  // Function to add stars to the scene
+  const addStarsToScene = () => {
+    if (!globeRef.current || starsAdded) return;
+
+    try {
+      const scene = globeRef.current.scene();
+      if (!scene) return;
+
+      // Check if stars already exist
+      const existingStars = scene.children.find((child: any) => child.name === 'starfield');
+      if (existingStars) {
+        setStarsAdded(true);
+        return;
+      }
+
+      console.log('Adding stars to scene...');
+
+      // Create star field as a skybox (optimized for performance)
+      const starGeometry = new THREE.BufferGeometry();
+      const starCount = 5000; // Reduced from 20000 for better performance
+      const positions = new Float32Array(starCount * 3);
+      const colors = new Float32Array(starCount * 3);
+      
+      for (let i = 0; i < starCount; i++) {
+        // Position stars on a very large sphere (skybox approach)
+        const radius = 5000;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        
+        positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+        positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+        positions[i * 3 + 2] = radius * Math.cos(phi);
+        
+        // Subtle star colors - mostly dim white
+        const brightness = 0.3 + Math.random() * 0.7;
+        const colorChoice = Math.random();
+        
+        if (colorChoice < 0.8) {
+          colors[i * 3] = brightness;
+          colors[i * 3 + 1] = brightness;
+          colors[i * 3 + 2] = brightness;
+        } else if (colorChoice < 0.9) {
+          colors[i * 3] = brightness * 0.8;
+          colors[i * 3 + 1] = brightness * 0.9;
+          colors[i * 3 + 2] = brightness;
+        } else {
+          colors[i * 3] = brightness;
+          colors[i * 3 + 1] = brightness * 0.95;
+          colors[i * 3 + 2] = brightness * 0.8;
+        }
+      }
+      
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      starGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      
+      const starMaterial = new THREE.PointsMaterial({
+        size: 2, // Slightly larger to compensate for fewer stars
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.7,
+        sizeAttenuation: false,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      
+      const stars = new THREE.Points(starGeometry, starMaterial);
+      stars.name = 'starfield';
+      stars.renderOrder = -999;
+      stars.frustumCulled = false; // Prevent culling calculations
+      
+      // Make stars follow camera so they always appear as background
+      const camera = globeRef.current.camera();
+      if (camera) {
+        const updateStarPosition = () => {
+          if (camera && stars) {
+            stars.position.copy(camera.position);
+          }
+        };
+        
+        // Update star position on each frame
+        globeRef.current.controls().addEventListener('change', updateStarPosition);
+        updateStarPosition();
+      }
+      
+      scene.add(stars);
+      
+      setStarsAdded(true);
+      console.log('Stars added successfully! Scene children:', scene.children.length);
+    } catch (error) {
+      console.error('Error adding stars:', error);
+    }
+  };
 
   // Early return AFTER all hooks
   if (!mounted) {
     return (
-      <div className="w-full h-full bg-gradient-to-b from-slate-900 to-black flex items-center justify-center">
+      <div className="w-full h-full bg-black flex items-center justify-center">
         <div className="text-white">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full bg-gradient-to-b from-slate-900 to-black">
+    <div ref={containerRef} className="w-full h-full bg-black">
       {dimensions.width > 0 && dimensions.height > 0 && (
         <>
           <GlobeComponent
@@ -261,6 +398,9 @@ export default function Globe() {
             // Use container dimensions
             width={dimensions.width}
             height={dimensions.height}
+            
+            // Callback when globe is ready
+            onGlobeReady={addStarsToScene}
             
             // Map tiles configuration with optimizations
             globeImageUrl={null}
@@ -278,8 +418,8 @@ export default function Globe() {
               return `https://tile.openstreetmap.org/${l}/${x}/${y}.png`;
             }}
             
-            // Background
-            backgroundColor="#000011"
+            // Background - deep space black
+            backgroundColor="rgba(0, 0, 0, 1)"
           
           // Arcs (orbital paths) - render BEFORE objects so satellites appear on top
           arcsData={allArcs}
@@ -331,13 +471,12 @@ export default function Globe() {
             // Get camera distance for zoom-based scaling
             const cameraDistance = globeRef.current?.camera()?.position?.length() || 2.5;
             // Scale inversely with zoom - satellites get smaller as you zoom in
-            // Simple linear scaling: far = bigger, close = smaller
             const zoomScale = Math.max(0.2, Math.min(1.0, (cameraDistance - 1.0) / 1.5));
             
             const model = modelCache[d.modelInfo.path];
             if (!model) {
-              // Fallback: simple sphere if model not loaded yet
-              const geometry = new THREE.SphereGeometry(0.05 * zoomScale, 16, 16);
+              // Fallback: simple sphere if model not loaded yet (optimized)
+              const geometry = new THREE.SphereGeometry(0.05 * zoomScale, 8, 8); // Reduced segments from 16,16
               const material = new THREE.MeshStandardMaterial({
                 color: d.isSelected ? 0x00ff00 : 0x4ecdc4,
                 emissive: d.isSelected ? 0x00ff00 : 0x4ecdc4,
@@ -352,35 +491,32 @@ export default function Globe() {
             const finalScale = d.modelInfo.scale * zoomScale;
             clone.scale.set(finalScale, finalScale, finalScale);
             
-            // Enhance lighting and visibility
+            // Optimize materials - reuse instead of cloning
             clone.traverse((child) => {
               if ((child as THREE.Mesh).isMesh) {
                 const mesh = child as THREE.Mesh;
                 if (mesh.material) {
-                  const mat = (mesh.material as THREE.MeshStandardMaterial).clone();
+                  const mat = mesh.material as THREE.MeshStandardMaterial;
                   
-                  // Reset to natural colors
-                  mat.color = new THREE.Color(0xffffff);
+                  // Modify existing material instead of cloning
                   mat.metalness = 0.6;
                   mat.roughness = 0.4;
                   
-                  // Add bright lighting for better visibility
                   if (d.isSelected) {
                     mat.emissive = new THREE.Color(0x00ff00);
                     mat.emissiveIntensity = 0.6;
                   } else {
-                    // Add subtle white glow for visibility without color tint
                     mat.emissive = new THREE.Color(0xffffff);
                     mat.emissiveIntensity = 0.3;
                   }
                   
-                  mesh.material = mat;
+                  mat.needsUpdate = true;
                 }
               }
             });
             
-            // Add point light to illuminate the model
-            const light = new THREE.PointLight(0xffffff, 2, 10);
+            // Add single point light (reduced intensity to save performance)
+            const light = new THREE.PointLight(0xffffff, 1.5, 8); // Reduced from 2, 10
             light.position.set(0, 0, 0);
             clone.add(light);
             
