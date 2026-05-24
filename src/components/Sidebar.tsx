@@ -350,19 +350,7 @@ function ViewConfigurationSection() {
     setLng(observer.lng.toFixed(4));
   }, [observer.lat, observer.lng]);
 
-  useEffect(() => {
-    if (hasAskedPermission) return;
-    
-    const isDefaultLocation = observer.lat === 40.7128 && observer.lng === -74.006;
-    
-    if (isDefaultLocation && navigator.geolocation) {
-      setHasAskedPermission(true);
-      const timer = setTimeout(() => {
-        handleGetLocation(true);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [hasAskedPermission, observer.lat, observer.lng]);
+  // Removed automatic location request - user must manually enable location
 
   const handleGetLocation = (silent = false) => {
     if (!navigator.geolocation) {

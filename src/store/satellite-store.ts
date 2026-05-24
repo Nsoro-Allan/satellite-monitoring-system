@@ -59,7 +59,7 @@ export const useSatelliteStore = create<SatelliteStore>()(
       setApiKey: (key) => set({ apiKey: key }),
       observer: { lat: 40.7128, lng: -74.006, alt: 0 },
       setObserver: (location) => set({ observer: location }),
-      showObserver: true,
+      showObserver: false,
       setShowObserver: (show) => set({ showObserver: show }),
       satellitesAbove: [],
       setSatellitesAbove: (satellites) => set({ satellitesAbove: satellites }),
